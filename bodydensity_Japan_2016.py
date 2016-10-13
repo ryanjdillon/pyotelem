@@ -29,10 +29,10 @@ loadprh(tag)
 # whale frame respectively
 
 
-# 2_DEFINE DIVES and make a summary table describing the characteristics of
+# 2_DEFINE DIVES
+# and make a summary table describing the characteristics of each dive.
 #==============================================================================
 
-# each dive.
 k = range(len(p))
 
 # define min_dive_def as the minimum depth at which to recognize a dive.
@@ -43,29 +43,30 @@ T = finddives(p, fs, min_dive_def, [], 1)
 # TODO make numpy record array
 
 #[start_time(s) end_time(s) dive_duration(s) max_depth(s) max_depth(m) ID(n)]
-D = []
+D = numpy.zeros((len(T[:,0]), 7))
+D[:] = numpy.nan
 
 # start time of each dive in seconds since the tag on time
-D[:, 0] = T[: , 0]
+D[:,0] = T[:,0]
 
 # end time of each dive in seconds since the tag on time
-D[:, 1] = T[: , 1]
+D[:,1] = T[:,1]
 
 # dive duration in seconds
-D[:, 2] = T[: , 1] - T[: , 0]
+D[:,2] = T[:,1] - T[:,0]
 
 # Post-dive surface duration in seconds
-D[:, 3] = [T[1:-1, 0]-T[0:-2, 1], NaN]
+D[:,3] = [T[1:-1, 0] - T[0:-2,1], NaN]
 
 # time of the deepest point of each dive
-D[:, 4] = T[: , 3]
+D[:,4] = T[:,3]
 
 # maximum dive depth of each dive
-D[:, 5] = T[: , 2]
+D[:,5] = T[:,2]
 
 # Dive ID number, starting from 1
 # TODO check
-D[:, 6] = 1*(0: T.size[0])
+D[:,6] = 1*(0: T.size[0])
 
 
 # 3 SEPARATE LOW AND HIGH ACCELERATION SIGNALS
@@ -97,8 +98,7 @@ for dive = range(T.size[0]):
     BOTTOM[:, 2] = (start_asc)/fs
 
     # selects the whole descent phase
-    des = round(fs * T[dive, 0]):
-        round(end_des)
+    des = round(fs * T[dive, 0]): round(end_des)
 
     # selects the whole ascent phase
     asc = round(start_asc): round(fs * T[dive, 1])
@@ -123,14 +123,16 @@ plot(f, S)
 # When calculated for the whole dive it may be difficult to differenciate the
 # peak at which stroking rate occurs as there is other kind of movements than
 # only steady swimming
+
 S, f = speclev(Aw[DES, : ], 512, fs)
 S, f = speclev(Aw[ASC, : ], 512, fs)
 
 # here the power spectra is calculated of the longitudinal and dorso-ventral
 # accelerometer signals during descents and ascents to determine the dominant
 # stroke frequency for each animal in each phase with a fft of 512 and a
-# sampling rate of fs.  Output: S is the amount of power in each particular
-# frequency (f)
+# sampling rate of fs.
+
+# Output: S is the amount of power in each particular frequency (f)
 
 
 # 3.2.2_Determine FR fluking rate and cut-off frequency
@@ -149,16 +151,16 @@ FRn    = 0
 cs     = 'bgr'
 va     = {'top', '', 'bottom'}
 
-S, f = speclev(Aw[k, : ], 512, fs), grid
-
 # whole deployment
 # TODO PLOT
 figure(1)
-clf
+
 ax(1) = subplot(311)
 
-# TODO check that S.size[1] == 3
-for nn in range(3):
+S, f = speclev(Aw[k, : ], 512, fs), grid
+
+
+for nn in range(3): # TODO check that S.size[1] == 3
     # make 0.1 smaller if it is not finding the peak you expect
     peakloc, peakmag = peakfinder(S[: , nn], 0.1)
     peakloc[0] = []
@@ -168,18 +170,24 @@ for nn in range(3):
     _, peak    = max(peakmag)
     peak       = peakloc[peak]
 
+    # TODO PLOT
     plot(f[peak], S[peak, nn], 'go', 'markersize', 10, 'linewidth', 2)
 
-    [minf, bf] = min(S[1: peak, nn])
+    min_f, bf = min(S[:peak, nn])
     FRl[FRn]   = f[bf]
 
-    # TODO removeL: plot
-    # hold on
-    # plot([f[bf] f[bf]],[min(S[:,nn]) minf],'k--','linewidth',2)
-    # text(f[bf],min(min(S[:,[1 3]])),['f = ' num2str(round(f[bf]*100)/100)],'horizontalalignment','right','color',cs[nn],'verticalalignment',va{nn})
-    # FR[FRn] = f[peak]
-    # FR_mag[FRn] = S[peak,nn]
-    # FRn = FRn+1
+    # TODO PLOT
+    plot([f[bf] f[bf]],[min(S[:,nn]) min_f],'k--','linewidth',2)
+
+    text(f[bf], min(min(S[:,[1 3]])),
+         ['f = ' num2str(round(f[bf]*100)/100)],
+         'horizontalalignment','right','color',
+         cs[nn],'verticalalignment',va{nn})
+
+    FR[FRn]     = f[peak]
+    FR_mag[FRn] = S[peak,nn]
+
+    FRn = FRn+1
 
 _, b = max(FR_mag[1: 2])
 
@@ -205,7 +213,6 @@ b = plot(f, S[:, 0], 'b')
 # TODO PLOT
 r = plot(f, S[:, 2], 'r')
 
-grid on
 ax1 = gca
 
 set(get(ax1, 'Xlabel'), 'String', [{'$\bf\ Frequency \hspace{1mm} (Hz) $'}],
@@ -219,26 +226,31 @@ hp1 = text( 0.02, diff(ys) * .92 + min(ys), 'Whole deployment', 'FontSize', 12,
 # name of the pannel
 legend([b r], 'HPF acc x axis (surge)', 'HPF acc z axis (heave)')
 
+
+
+
+
 ax(2) = subplot(312)
 
 S, f = speclev(Aw[DES, : ], 512, fs)
+
 for nn in range(3):
     # make 0.1 smaller if it is not finding the peak you expect
-    peakloc, peakmag = peakfinder(S[: , nn], 0.1)
+    peakloc, peakmag = peakfinder(S[:,nn], 0.1)
     peakloc[0] = []
     peakmag[0] = []
-    smoothS    = runmean(S[: , nn], 10)
+    smoothS    = runmean(S[:,nn], 10)
     peakmag    = peakmag - smoothS[peakloc]
     _, peak    = max(peakmag)
     peak       = peakloc[peak]
 
     # TODO PLOT
     plot(f[peak], S[peak, nn], 'go', 'markersize', 10, 'linewidth', 2)
-    [minf, bf] = min(S[0: peak, nn])
+    min_f, bf = min(S[0: peak, nn])
     FRl[FRn] = f[bf]
 
     # TODO PLOT
-    plot([f[bf] f[bf]], [min(S[:, nn]) minf], 'k--', 'linewidth', 2)
+    plot([f[bf], f[bf]], [min(S[:, nn]), min_f], 'k--', 'linewidth', 2)
 
     text(f[bf], min(min(S[:, [1,3]])),
          ['f = ' num2str(round(f[bf]*100)/100)],
@@ -258,11 +270,15 @@ else:
     v1 = 'bottom'
     v2 = 'top'
 
-text( FR[0], FR_mag[2] + 2 * sign( len(v1) - len(v2)), num2str( round( FR[2] *
-    100) / 100), 'verticalalignment', v1, 'horizontalalignment', 'center')
+text(FR[0],
+     FR_mag[2] + 2 * sign( len(v1) - len(v2)),
+     num2str( round( FR[2] * 100) / 100),
+     'verticalalignment', v1, 'horizontalalignment', 'center')
 
-text( FR[1], FR_mag[3] - 2 * sign( len(v1) - len(v2)), num2str( round( FR[3] *
-    100) / 100), 'verticalalignment', v2, 'horizontalalignment', 'center')
+text(FR[1],
+     FR_mag[3] - 2 * sign( len(v1) - len(v2)),
+     num2str( round( FR[3] * 100) / 100),
+     'verticalalignment', v2, 'horizontalalignment', 'center')
 
 # TODO PLOT
 b = plot(f, S[:, 0], 'b') grid
@@ -277,14 +293,20 @@ set(get(ax1, 'Xlabel'), 'String', [{'$\bf\ Frequency \hspace{1mm} (Hz) $'}],
 ys = get(ax1, 'ylim')
 
 # to write the name of the pannel
-hp1 = text( 0.02, diff(ys) * .92 + min(ys), 'Descents', 'FontSize', 12,
-        'FontWeight', 'bold', 'horizontalalignment', 'left')
+hp1 = text(0.02, diff(ys) * .92 + min(ys),
+           'Descents', 'FontSize', 12, 'FontWeight', 'bold',
+           'horizontalalignment', 'left')
 
 legend([b r], 'HPF acc x axis (surge)', 'HPF acc z axis (heave)')
+
+
+
+
 
 ax(3) = subplot(313)
 
 S, f = speclev(Aw[ASC, : ], 512, fs)
+
 # TODO check this for loop
 for nn in range(3):
     peakloc, peakmag = peakfinder(S[: , nn], 0.1)
@@ -297,15 +319,15 @@ for nn in range(3):
     # TODO PLOT
     plot(f[peak], S[peak, nn], 'go', 'markersize', 10, 'linewidth', 2)
 
-    minf, bf = min(S[0: peak, nn])
+    min_f, bf = min(S[0: peak, nn])
     FRl[FRn] = f[bf]
 
     # TODO PLOT
-    plot([f[bf] f[bf]], [min(S[:, nn]) minf], 'k--', 'linewidth', 2)
+    plot([f[bf], f[bf]], [min(S[:, nn]), min_f], 'k--', 'linewidth', 2)
 
     text(f[bf],
-         min(min(S[:, [1 3]])),
-         ['f = ' num2str(round(f[bf]*100)/100)],
+         min(min(S[:, [1, 3]])),
+         ['f = {}'.format(round(f[bf]*100)/100)],
          'horizontalalignment', 'right', 'color',
          cs[nn], 'verticalalignment', va{nn})
 
@@ -349,10 +371,12 @@ legend([b r], 'HPF acc x axis (surge)', 'HPF acc z axis (heave)')
 linkaxes(ax, 'x')
 
 
+
 # f = number that multiplied by the FR gives the cut-off frequency fl, of the
-# low pass filter. f is a fraction of FR. You can set default value to 0.4 if
-# not, otherwise set f as fl (frequency at the negative peak in the power
-# spectral density plot)/FR.
+# low pass filter. f is a fraction of FR.
+
+# You can set default value to 0.4 if not, otherwise set f as fl (frequency at
+# the negative peak in the power spectral density plot)/FR.
 
 # or set based on prior graph
 FR = numpy.mean(FR)
@@ -386,17 +410,16 @@ smoothpitch, smoothroll = a2pr(Anlf[k, : ])
 # check the difference between pitch and smoothpitch
 # TODO PLOT: pitch vs. smooth pitch
 
-#figure(2) clf
-#ax1 = subplot(2, 1, 1)
-#plott(p, fs)
-#ax2 = subplot(2, 1, 2)
-#
-#plot((1: len(p)) / fs, pitch * 180 / pi)
-#hold on
-#
-#plot((1: len(p)) / fs, smoothpitch * 180 / pi, 'r')
-#legend('pitch', 'smoothpitch')
-#linkaxes([ax1 ax2], 'x')
+figure(2) clf
+ax1 = subplot(2, 1, 1)
+plott(p, fs)
+
+ax2 = subplot(2, 1, 2)
+plot(range(len(p)) / fs, pitch * 180 / pi)
+
+plot(range(len(p)) / fs, smoothpitch * 180 / pi, 'r')
+legend('pitch', 'smoothpitch')
+linkaxes([ax1 ax2], 'x')
 
 
 # 4 DEFINE PRECISE DESCENT AND ASCENT PHASES
@@ -500,6 +523,7 @@ p_des(Phase > -1 | isnan(Phase)) = nan
 
 # TODO PLOT
 plot(subplot1, p_asc, 'k')
+
 # TODO PLOT
 plot(subplot1, p_des, 'b')
 
@@ -618,6 +642,7 @@ Anlf, Ahf, GL, KK = Ahf_Anlf(Aw, fs, FR, f, n, k, J, tmax)
 # in case you want to check the performance of both methods in the following
 # figure define glides and strokes obtained from the high pass filtered
 # acceleration as GLa and KKa respectively
+
 Anlf, Ahf, GLa, KKa = Ahf_Anlf(Aw, fs, FR, f, n, k, J, tmax)
 
 
@@ -708,33 +733,33 @@ set(ax2(2), 'ylim', [min(pry([ASC DES]]) max(pry([ASC DES]])])
 legend('speed', 'body rotations')
 linkaxes([subplot1 subplot2 ax2], 'x')  # links x axes
 
-GLdura          = GLa[: , 1]-GLa [: , 0]
-GLTa            = [GLa[:, 0], GLdura]
-GLdur           = GL[: , 1]-GL [: , 1]
-GLT             = [GL[:, 0], GLdur]
-t               = range(len(pry[: , 0])-1)/fs
-glk             = eventon[GLT, t]
-glka            = eventon[GLTa, t]
-pgl             = p
-pgla            = p
-pgl[glk == 0]   = numpy.nan
-pgla[glka == 0] = numpy.nan
+GLdura            = GLa[: , 1]-GLa [: , 0]
+GLTa              = [GLa[:, 0], GLdura]
+GLdur             = GL[: , 1]-GL [: , 1]
+GLT               = [GL[:, 0], GLdur]
+t                 = range(len(pry[: , 0])-1)/fs
+gl_k              = eventon[GLT, t]
+gl_ka             = eventon[GLTa, t]
+p_gl              = p
+p_gla             = p
+p_gl[gl_k == 0]   = numpy.nan
+p_gla[gl_ka == 0] = numpy.nan
 
 # TODO PLOT
 # glides detected with the body rotations (pry)
-h3 = plot(subplot1, t * fs, pgl, 'm:', 'Linewidth', 3)
+h3 = plot(subplot1, t * fs, p_gl, 'm:', 'Linewidth', 3)
 
 # TODO PLOT
 # glides detected with the hpf acc
-h4 = plot(subplot1, t * fs, pgla, 'y:', 'Linewidth', 3)
+h4 = plot(subplot1, t * fs, p_gla, 'y:', 'Linewidth', 3)
 
 legend(subplot1, 'Bottom', 'Not Dive', 'Ascent', 'Descent', 'Glide', 'location',
-        'southeast')
+       'southeast')
 
 # SGtype indicates whether it is stroking (1) or gliding(0)
-glk1[glk == 0] = 1
-glk1[glk < 0] = 0
-SGtype = glk1
+gl_k1[gl_k == 0] = 1
+gl_k1[gl_k < 0] = 0
+SGtype = gl_k1
 
 
 # 8_MAKE 5SEC SUB-GLIDES
@@ -747,14 +772,14 @@ SGLT = [SGL[:, 0], SGL[:, 1] - SGL[:, 0]]
 # check that all subglides have a duration of 5 seconds
 rangeSGLT = [min(SGLT[:, 1]), max(SGLT[:, 1])]
 
-glk = eventon[SGLT, t]
-pgl = p
-pgl[glk == 0] = numpy.nan
+gl_k = eventon[SGLT, t]
+p_gl = p
+p_gl[gl_k == 0] = numpy.nan
 
 # TODO PLOT
 figure(7)
 
-h3 = plot(subplot1, t * fs, pgl, 'm', 'Linewidth', 3)
+h3 = plot(subplot1, t * fs, p_gl, 'm', 'Linewidth', 3)
 
 
 # 9 create summary table required for body density
@@ -770,6 +795,7 @@ tmax  = 1 / FR
 
 MagAcc, pry, Sa, GL, KK = magnet_rot_sa(Aw, Mw, fs, FR, f, alpha, n, k, J,
                                         tmax)
+
 smoothhead = m2h(MagAcc.Mnlf[k, :], smoothpitch, smoothroll)
 smoothpitchdeg = smoothpitch * 180 / pi
 
@@ -778,72 +804,76 @@ smoothpitchdeg = smoothpitch * 180 / pi
 #==============================================================================
 
 dur = 5
+
+# TODO make numpy record array?
 Glide = numpy.zeros(len(SGL), 24)
+
 for i in range(len(SGL)):
-    cue1 = SGL[i, 0] * fs
-    cue2 = SGL[i, 1] * fs
+    cue1 = SGL[i,0] * fs
+    cue2 = SGL[i,1] * fs
 
     # sub-glide start point in seconds
-    Glide[i, 0] = SGL[i, 0]
+    Glide[i,0] = SGL[i,0]
 
     # sub-glide end point in seconds
-    Glide[i, 1] = SGL[i, 1]
+    Glide[i,1] = SGL[i,1]
 
     # sub-glide duration
-    Glide[i, 2] = SGL[i, 1] - SGL[i, 0]
+    Glide[i,2] = SGL[i,1] - SGL[i,0]
 
     # mean depth(m)during sub-glide
-    Glide[i, 3] = numpy.mean(p[round(cue1): round(cue2)])
+    Glide[i,3] = numpy.mean(p[round(cue1): round(cue2)])
 
     # total depth(m)change during sub-glide
-    Glide[i, 4] = abs(p[round(cue1)] - p[round(cue2)])
+    Glide[i,4] = abs(p[round(cue1)] - p[round(cue2)])
 
     # mean swim speed during the sub-glide, only given if pitch>30 degrees
-    Glide[i, 5] = numpy.mean(SwimSp[round(cue1): round(cue2)])
+    Glide[i,5] = numpy.mean(SwimSp[round(cue1): round(cue2)])
 
     # mean pitch during the sub-glide
-    Glide[i, 6] = numpy.mean(smoothpitchdeg[round(cue1): round(cue2)])
+    Glide[i,6] = numpy.mean(smoothpitchdeg[round(cue1): round(cue2)])
 
     # mean sin pitch during the sub-glide
-    Glide[i, 7] = numpy.sin(numpy.mean(smoothpitchdeg[round(cue1): round(cue2)]))
+    Glide[i,7] = numpy.sin(numpy.mean(smoothpitchdeg[round(cue1): round(cue2)]))
 
     # SD of pitch during the sub-glide
-    Glide[i, 8] = numpy.std(smoothpitchdeg[round(cue1): round(cue2)]) * 180 / pi
+    Glide[i,8] = numpy.std(smoothpitchdeg[round(cue1): round(cue2)]) * 180 / pi
 
     # mean temperature during the sub-glide
-    Glide[i, 9] = numpy.mean(temp[round(cue1): round(cue2)])
+    Glide[i,9] = numpy.mean(temp[round(cue1): round(cue2)])
 
     # mean seawater density (kg/m^3) during the sub-glide
-    Glide[i, 10] = numpy.mean(Dsw[round(cue1): round(cue2)])
+    Glide[i,10] = numpy.mean(Dsw[round(cue1): round(cue2)])
 
     # TODO check matlab here
-    try
-    xpoly = (round(cue1): round(cue2))
-    ypoly = SwimSp[round(cue1): round(cue2)]
+    try:
+        xpoly = (round(cue1): round(cue2))
+        ypoly = SwimSp[round(cue1): round(cue2)]
 
-    B, BINT, R, RINT, STATS = regress(ypoly, [xpoly, numpy.ones(len(ypoly), 1)])
+        B, BINT, R, RINT, STATS = regress(ypoly, [xpoly,
+                                                  numpy.ones(len(ypoly), 1)])
 
-    # mean acceleration during the sub-glide
-    Glide[i, 11] = B[0]
+        # mean acceleration during the sub-glide
+        Glide[i,11] = B[0]
 
-    # R2-value for the regression swim speed vs. time during the sub-glide
-    Glide[i, 12] = STATS[0]
+        # R2-value for the regression swim speed vs. time during the sub-glide
+        Glide[i,12] = STATS[0]
 
-    # SE of the gradient for the regression swim speed vs. time during the
-    # sub-glide
-    Glide[i, 13] = STATS[3]
+        # SE of the gradient for the regression swim speed vs. time during the
+        # sub-glide
+        Glide[i,13] = STATS[3]
 
-    # catch  # TODO check matlab here
+    except:
 
-    # mean acceleration during the sub-glide
-    Glide[i, 11] = numpy.nan
+        # mean acceleration during the sub-glide
+        Glide[i,11] = numpy.nan
 
-    # R2-value for the regression swim speed vs. time during the sub-glide
-    Glide[i, 12] = numpy.nan
+        # R2-value for the regression swim speed vs. time during the sub-glide
+        Glide[i,12] = numpy.nan
 
-    # SE of the gradient for the regression swim speed vs. time during the
-    # sub-glide
-    Glide[i, 13] = numpy.nan
+        # SE of the gradient for the regression swim speed vs. time during the
+        # sub-glide
+        Glide[i,13] = numpy.nan
 
     sumphase = sum(phase[round(cue1): round(cue2)])
     # TODO check what dimensions of sp should be
@@ -853,7 +883,7 @@ for i in range(len(SGL)):
     sp[sumphase > 0]  = 1
 
     # Dive phase:0 bottom, -1 descent, 1 ascent, NaN not dive phase
-    Glide[i, 14] = sp
+    Glide[i,14] = sp
 
     Dinf = D[numpy.where((D[: , 0]*fs < cue1) & (D[: , 1]*fs > cue2)), : ]
 
@@ -862,39 +892,42 @@ for i in range(len(SGL)):
         Dinf[:] = numpy.nan
 
     # Dive number in which the sub-glide recorded
-    Glide[i, 15] = Dinf[6]
+    Glide[i,15] = Dinf[6]
 
     # Maximum dive depth (m) of the dive
-    Glide[i, 16] = Dinf[5]
+    Glide[i,16] = Dinf[5]
 
     # Dive duration (s) of the dive
-    Glide[i, 17] = Dinf[2]
+    Glide[i,17] = Dinf[2]
 
     # Mean pitch(deg) calculated using circular statistics
-    Glide[i, 18] = circ_mean(smoothpitch[round(cue1): round(cue2)])
+    Glide[i,18] = circ_mean(smoothpitch[round(cue1): round(cue2)])
 
     # Measure of concentration (r) of pitch during the sub-glide (i.e. 0 for
     # random direction, 1 for unidirectional)
-    Glide[i, 19] = 1 - circ_var(smoothpitch[round(cue1): round(cue2)])
+    Glide[i,19] = 1 - circ_var(smoothpitch[round(cue1): round(cue2)])
 
     # Mean roll (deg) calculated using circular statistics
-    Glide[i, 20] = circ_mean(smoothroll[round(cue1): round(cue2)])
+    Glide[i,20] = circ_mean(smoothroll[round(cue1): round(cue2)])
 
     # Measure of concentration (r) of roll during the sub-glide
-    Glide[i, 21] = 1 - circ_var(smoothroll[round(cue1): round(cue2)])
+    Glide[i,21] = 1 - circ_var(smoothroll[round(cue1): round(cue2)])
 
     # Mean heading (deg) calculated using circular statistics
-    Glide[i, 22] = circ_mean(smoothhead[round(cue1): round(cue2)])
+    Glide[i,22] = circ_mean(smoothhead[round(cue1): round(cue2)])
 
     # Measure of concentration (r) of heading during the sub-glide
-    Glide[i, 23] = 1 - circ_var(smoothhead[round(cue1): round(cue2)])
+    Glide[i,23] = 1 - circ_var(smoothhead[round(cue1): round(cue2)])
 
 
-csvwrite('WhaleID.csv', Glide)
+# TODO Write to csv or whatever
+# csvwrite('WhaleID.csv', Glide)
 
 
 # 11 Calculate glide ratio
 #==============================================================================
+
+# TODO G_ratio as numpy record array
 
 G_ratio = zeros(T.size[0], 10)
 
