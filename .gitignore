@@ -1,0 +1,8 @@
+# swap files
+~*
+*.swp
+
+# python files
+*.p
+*.pyc
+*.pyx
