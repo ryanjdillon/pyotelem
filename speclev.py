@@ -1,44 +1,92 @@
 
-def speclev(x, nfft, fs, w, nov, *args, **kwargs):
-    nargin = sys._getframe(1).f_locals['nargin']
-    varargin = sys._getframe(1).f_locals['varargin']
-    nargout = sys._getframe(1).f_locals['nargout']
+def speclev(x, nfft=512, fs=1, w=None, nov=None):
+    '''
+    Args
+    ----
+    x:   signal from which the speclev (power spectra) is going to be calculated
+    fft: fourier transform len
+    fs:  frequency sample
+    w:   if not specified then w is equal to the nfft
+    nov: if not specified then nov is set to half the size of the nfft
 
-    #    [SL,f]=speclev(x,nfft,fs,w,nov) S is the amount of power in each particular frequency (f)
-#  x is the signal from which the speclev (power spectra) is going to be
-#  calculated
-# fft  is the fourier transform length
-# fs is the frequency sample
-# w is that if there is less than 4 inputs then w is equal to the nfft
-# nov is that if there is less than 5 inputs then nov which is the overlap will be half of the size of the nfft
-#    mark johnson, WHOI
-#    mjohnson@whoi.edu
-    if nargin < 2:
-        nfft = 512
+    Attributes
+    ----------
+    S:   amount of power in each particular frequency (f)
 
-    if nargin < 3:
-        fs = 1
+    Returns
+    -------
+    SL:
+    f:
+    '''
+    import numpy
 
-    if nargin < logical_or(4, isempty(w)):
-        w = copy(nfft)
+    def buffer(x, n, p, opt='nodelay'):
+        '''Mimic MATLAB routine to generate buffer array
 
-    if nargin < 5:
+        Args
+        ----
+        x:   signal array
+        n:   number of data segments
+        p:   number of values to overlap/underlap
+        opt: initial condition options. default is to set the first `p` values
+             to zero, while 'nodelay' to begin filling the buffer immediately.
+        '''
+        import numpy
+
+        L = len(x)
+        cols = int(numpy.ceil(L/(n-p)))
+
+        b = numpy.zeros((cols, n))
+
+        if p >= n:
+            raise ValueError('`p` must be less than `n`.')
+
+        if opt == 'nodelay':
+            # skips initial condition, and begins filling buffer immediately
+            if L < p:
+                raise ValueError('p value too large for `nodelay`')
+
+        else:
+            raise SystemError('only `nodelay` implmented so far')
+
+        for i in range(cols):
+            print(i, p)
+            if i != 0:
+                # set first values of row to last p values
+                b[i,:p] = b[i-1, -p:]
+            else:
+                b[i,:p] = 0
+
+            b[i,p:] = x[n*i:(n*(i+1))-p]
+
+        return b
+
+    if w == None:
+        w = nfft
+
+    if nov == None:
         nov = nfft / 2
 
-    if length(w) == 1:
+    if len(w) == 1:
         w = hanning(w)
 
-    P = zeros(nfft / 2, size(x, 2))
-    for k in range(1, size(x, 2)).reshape(-1):
-        X, z = buffer(x[:, k], length(w), nov, 'nodelay', nargout=2)
-        X = multiply(detrend(X), repmat(w, 1, size(X, 2)))
-        F = abs(fft(X, nfft)) ** 2
+    P = numpy.zeros((nfft / 2, x.shape[1]))
+
+    for k in range(x.shape[1]):
+        X, z = buffer(x[:, k], len(w), nov, 'nodelay')
+
+        X = multiply(detrend(X), repmat(w, 1, X.shape[1]))
+
+        F = abs(numpy.fft(X, nfft)) ** 2
+
         P[:, k] = sum(F[1:nfft / 2, :], 2)
 
-    ndt = size(X, 2)
-    # these two lines give correct output for randn input
-# SL of randn should be -10*log10(fs/2)
+    ndt = X.shape[1]
 
-    slc = 3 - dot(10, log10(fs / nfft)) - dot(10, log10(sum(w ** 2) / nfft))
-    SL = dot(10, log10(P)) - dot(10, log10(ndt)) - dot(20, log10(nfft)) + slc
-    f = dot((range(0, nfft / 2 - 1)) / nfft, fs)
+    # these two lines give correct output for randn input
+    # SL of randn should be -10*log10(fs/2)
+    slc = 3 - 10*log10(fs / nfft) - 10*log10(sum(w ** 2) / nfft)
+    SL = 10*log10(P) - 10*log10(ndt) - 20*log10(nfft) + slc
+    f = numpy.asarray(range(int((nfft/2)-1))) / nfft * fs
+
+    return SL, f
