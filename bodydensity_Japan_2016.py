@@ -4,108 +4,144 @@ Body density estimation. Japan workshop May 2016
 Lucia Martina Martin Lopez lmml2@st-andrews.ac.uk
 '''
 import numpy
+import finddives
+
+
+def first_idx(condition):
+    '''Return first occurance of true in boolean array'''
+    import numpy
+
+    idx = numpy.argmax(condition)
+
+    return idx
+
+
+def last_idx(condition):
+    '''Return last occurance of true in boolean array
+
+    Uses argmax method on reversed array, accounding for position
+    '''
+    import numpy
+
+    idx = len(condition) - numpy.argmax(condition[::-1) - 1
+
+    return idx
+
+
+def create_dive_summary(T):
+    '''Create a numpy array with summary values of dives
+
+    Save for record array implementation:
+
+    dtype = numpy.dtype([('start_time', int),  # start in sec since tag on time
+                         ('end_time', int),    # end in sec since tag on time
+                         ('duration', int),    # dive duration in sec
+                         ('surface', int),     # post-dive surface duration in sec
+                         ('max_time', int),    # time of deepest point
+                         ('max_depth', float), # maximum dive depth of each dive
+                         ('dive_id', int),     # dive ID number
+                         ])
+    D = numpy.zeros((n_dives)), dtype=dtypes)
+
+    '''
+    import numpy
+
+    n_dives = len(T[:,0])
+
+    D = numpy.zeros((n_dives)), dtype=dtypes)
+
+    # start in sec since tag on time
+    D[:,0] = T[:,0]
+
+    # end in sec since tag on time
+    D[:,1] = T[:,1]
+
+    # dive duration in sec
+    D[:,2] = T[:,1] - T[:,0]
+
+    # post-dive surface duration in sec
+    D[:,3] = [T[1:-1, 0] - T[0:-2,1], NaN]
+
+    # time of deepest point
+    D[:,4] = T[:,3]
+
+    # maximum dive depth of each dive
+    D[:,5] = T[:,2]
+
+    # dive ID number
+    D[:,6] = range(n_dives)
+
+    return D
+
+
+def get_asc_des(T):
+    '''Return indices for descent and ascent periods of dives in T
+
+    3.1 quick separation of descent and ascent phases
+    '''
+
+    # TODO may need to change list to numpy array for indexing
+
+    DES = list()
+    ASC = list()
+    for dive in range(T.size[0]):
+        # get list of indices to select the whole dive
+        kk = list(range(round(fs * T[dive, 0]):round(fs * T[dive, 1])))
+
+        # find first point where pitch is positive, last point where pitch is negative
+        end_des = first_idx(pitch[kk] * 180 / pi > 0) + (T[dive, 0] * fs)
+        start_asc = last_idx(pitch[kk] * 180 / pi < 0) + (T[dive, 0] * fs)
+
+        ## TODO remove? - not used elsewhere, init with numpy array
+        ## Time in seconds at the start of bottom phase (end of descent)
+        #BOTTOM[:, 0] = (end_des)/fs
+
+        ## Time in seconds at the end of bottom phase (start of descent)
+        #BOTTOM[:, 2] = (start_asc)/fs
+
+        # selects the whole descent phase
+        des = list(range(round(fs * T[dive, 0]), round(end_des)))
+
+        # selects the whole ascent phase
+        asc = list(range(round(start_asc), round(fs * T[dive, 1])))
+
+        # Concatenate lists
+        DES += des
+        ASC += asc
+
+    return end_des, start_asc, DES, ASC
+
 
 # 1_LOAD DATA.
 #==============================================================================
 
 # load your prhfile
-clear all
 tag = ''  # eg., md13_134a
-settagpath('prh', 'C:/tag/tag2/metadata/prh')
-loadprh(tag)
-
-# or as
-[files, fileloc] = uigetfile('*.mat', 'select prh file', 'multiselect', 'on')
-if ischar(files):
-    files = {files}
-
-nn = regexp(files{1}, 'prh')
-tag = files{1}(1: nn - 1)
-settagpath('prh', fileloc)
-loadprh(tag)
 
 # pitch roll and heading are in radians
-# Aw and Mw are the tri-axial accelerometer and magnetometer data at the
-# whale frame respectively
+# Aw tri-axial accelerometer data at whale frame
+# Mw magnetometer data at whale frame
+Aw, Mw = some_func()
 
 
 # 2_DEFINE DIVES
 # and make a summary table describing the characteristics of each dive.
 #==============================================================================
 
-k = range(len(p))
-
 # define min_dive_def as the minimum depth at which to recognize a dive.
 min_dive_def = 300
 
-T = finddives(p, fs, min_dive_def, [], 1)
-
-# TODO make numpy record array
+T = finddives.finddives(p, fs, thresh=min_dive_def, surface=1, findall=True)
 
 #[start_time(s) end_time(s) dive_duration(s) max_depth(s) max_depth(m) ID(n)]
-D = numpy.zeros((len(T[:,0]), 7))
-D[:] = numpy.nan
 
-# start time of each dive in seconds since the tag on time
-D[:,0] = T[:,0]
-
-# end time of each dive in seconds since the tag on time
-D[:,1] = T[:,1]
-
-# dive duration in seconds
-D[:,2] = T[:,1] - T[:,0]
-
-# Post-dive surface duration in seconds
-D[:,3] = [T[1:-1, 0] - T[0:-2,1], NaN]
-
-# time of the deepest point of each dive
-D[:,4] = T[:,3]
-
-# maximum dive depth of each dive
-D[:,5] = T[:,2]
-
-# Dive ID number, starting from 1
-# TODO check
-D[:,6] = 1*(0: T.size[0])
-
+D = create_dive_summary(T)
 
 # 3 SEPARATE LOW AND HIGH ACCELERATION SIGNALS
 #==============================================================================
 
 # 3.1 QUICK SEPARATION OF DESCENT AND ASCENT PHASES
-#------------------------------------------------------------------------------
-
-BOTTOM = []
-DES = []
-ASC = []
-
-for dive = range(T.size[0]):
-    # TODO check indentation here
-
-    # it is selecting the whole dive
-    kk = round(fs * T[dive, 0]):round(fs * T[dive, 1])
-
-    # search for the first point at which pitch is positive
-    end_des = (numpy.where((pitch[kk] * 180 / pi) > 0, 1, 'first') + T[dive, 0] * fs)
-
-    # search for the last point at which the pitch is negative
-    start_asc = (numpy.where((pitch[kk] * 180 / pi) < 0, 1, 'last') + T[dive, 0] * fs)
-
-    # Time in seconds at the start of bottom phase (end of descent)
-    BOTTOM[:, 0] = (end_des)/fs
-
-    # Time in seconds at the end of bottom phase (start of descent)
-    BOTTOM[:, 2] = (start_asc)/fs
-
-    # selects the whole descent phase
-    des = round(fs * T[dive, 0]): round(end_des)
-
-    # selects the whole ascent phase
-    asc = round(start_asc): round(fs * T[dive, 1])
-
-    DES = [DES, des]
-    ASC = [ASC, asc]
-
+end_des, start_asc, DES, ASC = get_asc_des(T)
 
 # 3.2 SEPARATE LOW AND HIGH ACCELERATION SIGNALS
 #------------------------------------------------------------------------------
@@ -159,8 +195,8 @@ ax(1) = subplot(311)
 
 S, f = speclev(Aw[k, : ], 512, fs), grid
 
-
-for nn in range(3): # TODO check that S.size[1] == 3
+# TODO check that S.size[1] == 3
+for nn in range(3):
     # make 0.1 smaller if it is not finding the peak you expect
     peakloc, peakmag = peakfinder(S[: , nn], 0.1)
     peakloc[0] = []
@@ -888,7 +924,7 @@ for i in range(len(SGL)):
     Dinf = D[numpy.where((D[: , 0]*fs < cue1) & (D[: , 1]*fs > cue2)), : ]
 
     if isempty(Dinf):
-        Dinf = numpy.zeros(D.size[0], D.size[1])
+        Dinf = numpy.zeros(D.shape)
         Dinf[:] = numpy.nan
 
     # Dive number in which the sub-glide recorded
