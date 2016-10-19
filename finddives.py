@@ -74,7 +74,7 @@ def finddives(depths_m, fs, thresh=10, surface=1, findall=False):
     t_off = t_off[:j]
 
     # filter vertical velocity to find actual surfacing moments
-    depth_fs = numpy.hstack(([0], numpy.diff(depths_m)]))*fs
+    depth_fs = numpy.hstack(([0], numpy.diff(depths_m))) * fs
     b, a     = scipy.signal.butter(4, dp_lowpass / (fs / 2), btype='low')
     dp       = scipy.signal.filtfilt(b, a, depth_fs)
 
@@ -82,7 +82,7 @@ def finddives(depths_m, fs, thresh=10, surface=1, findall=False):
     dive_max = numpy.zeros((len(t_on), 2))
     for i in range(len(t_on)):
         # for each t_on, look back to find last time whale was at the surface
-        ind    = t_on[i] + numpy.asarray(range(round(search_len * fs)), 0, -1)
+        ind    = t_on[i] + numpy.asarray(range(round(search_len * fs), 0, -1))
         ind    = ind[numpy.where(ind > 0)]
         idx_i  = max(numpy.where(dp[ind] < dp_thresh))
 
@@ -97,6 +97,11 @@ def finddives(depths_m, fs, thresh=10, surface=1, findall=False):
 
         # Append `dm` to front of derived dive_max array
         dive_max[k, :] = numpy.hstack((dm, (t_on[i] + km - 1)/fs + t_good))
+
+    # Raise error if dives not found in depth data
+    if len(t_on) < 1:
+        raise ValueError('No dives found in depth data. '
+                         'len(t_on)={}'.format(t_on))
 
     # measure dive statistics
     depth_mean = numpy.zeros(len(t_on))
