@@ -104,7 +104,6 @@ def speclev(x, nfft=512, fs=1, w=None, nov=None):
     import numpy
     import scipy.signal
 
-        buffer(x, n, p=0, opt=None)
     if w == None:
         w = nfft
 
@@ -115,8 +114,8 @@ def speclev(x, nfft=512, fs=1, w=None, nov=None):
         w = hanning(w)
 
     P = numpy.zeros((nfft / 2, x.shape[1]))
-=`=jedi=0, =`=                      (*_**_*) =`=jedi=`=
-    for k in range(len(x.shape[1]):
+
+    for k in range(len(x.shape[1])):
         X, z = buffer(x[:, k], len(w), nov, 'nodelay', z_out=True)
 
         X = scipy.signal.detrend(X) * w
