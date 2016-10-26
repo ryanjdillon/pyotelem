@@ -3,29 +3,20 @@ Body density estimation. Japan workshop May 2016
 
 Lucia Martina Martin Lopez lmml2@st-andrews.ac.uk
 '''
-import numpy
-import finddives
-
 
 def first_idx(condition):
-    '''Return first occurance of true in boolean array'''
+    '''Return index of first occurance of true in boolean array'''
     import numpy
 
-    idx = numpy.argmax(condition)
-
-    return idx
+    return numpy.where(condition)[0][0]
 
 
 def last_idx(condition):
-    '''Return last occurance of true in boolean array
-
-    Uses argmax method on reversed array, accounding for position
+    '''Return index of last occurance of true in boolean array
     '''
     import numpy
 
-    idx = len(condition) - numpy.argmax(condition[::-1]) - 1
-
-    return idx
+    return numpy.where(condition)[0][-1]
 
 
 def create_dive_summary(T):
@@ -46,30 +37,30 @@ def create_dive_summary(T):
     '''
     import numpy
 
-    n_dives = len(T[:,0])
+    n_dives = len(T[:, 0])
 
-    D = numpy.zeros((n_dives,7))
+    D = numpy.zeros((n_dives, 7))
 
     # start in sec since tag on time
-    D[:,0] = T[:,0]
+    D[:, 0] = T[:, 0]
 
     # end in sec since tag on time
-    D[:,1] = T[:,1]
+    D[:, 1] = T[:, 1]
 
     # dive duration in sec
-    D[:,2] = T[:,1] - T[:,0]
+    D[:, 2] = T[:, 1] - T[:, 0]
 
     # post-dive surface duration in sec
-    D[:,3] = numpy.hstack((T[1:, 0] - T[0:-1,1], [numpy.nan]))
+    D[:, 3] = numpy.hstack((T[1:, 0] - T[0:-1, 1], [numpy.nan]))
 
     # time of deepest point
-    D[:,4] = T[:,3]
+    D[:, 4] = T[:, 3]
 
     # maximum dive depth of each dive
-    D[:,5] = T[:,2]
+    D[:, 5] = T[:, 2]
 
     # dive ID number
-    D[:,6] = range(n_dives)
+    D[:, 6] = range(n_dives)
 
     return D
 
@@ -86,26 +77,28 @@ def get_asc_des(T, pitch):
     DES = list()
     ASC = list()
     for dive in range(len(T)):
-        print(dive)
+        print('Dive: {}'.format(dive))
         # get list of indices to select the whole dive
         kk = range(int(fs * T[dive, 0]), int(fs * T[dive, 1]))
 
-        # find first point where pitch is positive, last point where pitch is negative
+        # find first point where pitch is positive, last point where pitch is
+        # negative
         end_des = first_idx(pitch[kk] * 180 / numpy.pi > 0) + (T[dive, 0] * fs)
-        start_asc = last_idx(pitch[kk] * 180 / numpy.pi < 0) + (T[dive, 0] * fs)
+        start_asc = last_idx(
+            pitch[kk] * 180 / numpy.pi < 0) + (T[dive, 0] * fs)
 
-        ## TODO remove? - not used elsewhere, init with numpy array
-        ## Time in seconds at the start of bottom phase (end of descent)
+        # TODO remove? - not used elsewhere, init with numpy array
+        # Time in seconds at the start of bottom phase (end of descent)
         #BOTTOM[:, 0] = (end_des)/fs
 
-        ## Time in seconds at the end of bottom phase (start of descent)
+        # Time in seconds at the end of bottom phase (start of descent)
         #BOTTOM[:, 2] = (start_asc)/fs
 
         # selects the whole descent phase
-        des = list(range(round(fs * T[dive, 0]), round(end_des)))
+        des = list(range(int(fs * T[dive, 0]), int(end_des)))
 
         # selects the whole ascent phase
-        asc = list(range(round(start_asc), round(fs * T[dive, 1])))
+        asc = list(range(int(start_asc), int(fs * T[dive, 1])))
 
         # Concatenate lists
         DES += des
@@ -116,10 +109,14 @@ def get_asc_des(T, pitch):
 
 # 1_LOAD DATA.
 #==============================================================================
-from biotelem.acc import lleo
+import numpy
+
+from pylleo.pylleo import lleoio, lleocal
+
+from dtag_toolbox_python.dtag2 import a2pr
 
 # load your prhfile
-#tag = ''  # eg., md13_134a
+# tag = ''  # eg., md13_134a
 
 # pitch roll and heading are in radians
 # Aw tri-axial accelerometer data at whale frame
@@ -133,24 +130,49 @@ data_path = ('/home/ryan/Desktop/edu/01_PhD/projects/smartmove/data/'
 param_strs = ['Acceleration-X', 'Acceleration-Y', 'Acceleration-Z', 'Depth',
               'Propeller', 'Temperature']
 
+cal_yaml_path = ('/home/ryan/Desktop/phd/projects/smartmove/data/'
+                 'lleo_coexist/Acceleration/'
+                 '20140821_W190PD3GT_34839_Skinny_2floats/'
+                 'cal.yaml')
 n_header = 10
 
-meta = lleo.read_meta(data_path, param_strs, n_header)
-acc, depth, prop, temp = lleo.read_data(meta, data_path, n_header)
+meta = lleoio.read_meta(data_path, param_strs, n_header)
+acc, depth, prop, temp = lleoio.read_data(meta, data_path, n_header)
+
+# Truncate data based on dive depths
+cutoff_depth = 2
+
+data_start = depth['datetimes'][first_idx(depth['depth'] > 2)]
+data_end   = depth['datetimes'][last_idx(depth['depth'] > 2)]
+acc_trunc = acc[(acc['datetimes'] > date_start) & (acc['datetimes'] < date_end)]
+
+# Load and calibrate data acc data
+cal_dict = lleocal.load(cal_yaml_path)
+acc_x_g = lleocal.apply_poly(acc_trunc, cal_dict, 'acceleration_x')
+acc_y_g = lleocal.apply_poly(acc_trunc, cal_dict, 'acceleration_y')
+acc_z_g = lleocal.apply_poly(acc_trunc, cal_dict, 'acceleration_z')
+
+A = numpy.vstack([acc_x_g, acc_y_g, acc_z_g]).T.astype(float).T
 
 # Turn depth values into float array
-p = depth['depth'].values.astype(float)
+depth_trunc = depth[(depth['datetimes'] > date_start) & \
+                    (depth['datetimes'] < date_end)]
+p = depth_trunc['depth'].values.astype(float)
 fs = float(meta['Depth']['Interval(Sec)'])
 
-# TODO pitch, roll, heading = func()
+# TODO pitch, roll, heading: same as p for depth?
+A_pitch, A_roll, A_norm = a2pr.a2pr(A)
+
 
 # 2_DEFINE DIVES
 # and make a summary table describing the characteristics of each dive.
 #==============================================================================
+from bodycondition import finddives
+
 
 # define min_dive_def as the minimum depth at which to recognize a dive.
 # TODO assign correct value
-min_dive_def = 3#00
+min_dive_def = 3  # 00
 
 T = finddives.finddives(p, fs, thresh=min_dive_def, surface=1, findall=True)
 
@@ -161,28 +183,42 @@ D = create_dive_summary(T)
 #==============================================================================
 
 # 3.1 QUICK SEPARATION OF DESCENT AND ASCENT PHASES
-end_des, start_asc, DES, ASC = get_asc_des(T, pitch)
+end_des, start_asc, DES, ASC = get_asc_des(T, A_pitch)
 
 # 3.2 SEPARATE LOW AND HIGH ACCELERATION SIGNALS
 #------------------------------------------------------------------------------
 
 # 3.2.1 select periods of analysis.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-import speclev
+from bodycondition import speclev
+import matplotlib.pyplot as plt
+
 
 # during whole deployment
-S, f = speclev.speclev(Aw[k,:], nfft=512, fs=fs)
+
+# Get data of submerged animal
+plt.plot(range(len(A[0])), A[0])
+plt.show()
+
+dt = acc['datetimes'][1] - acc['datetimes'][0]
+fs = 1/(dt.microseconds/1e6)
+
+f_welch, S_xx_welch, P_welch, df_welch = calc_PSD_welch(A[0], fs)
+
+S, f = speclev.speclev(Aw[k, :], n_fft=512, fs=fs)
 
 # TODO PLOT: spec levels - f vs S
-plot(f, S)
+fig, ax = plt.subplots()
+plt.plot(f, S)
+plt.show()
 
 # during all descents and ascents phases where mainly steady swimming occurs.
 # When calculated for the whole dive it may be difficult to differenciate the
 # peak at which stroking rate occurs as there is other kind of movements than
 # only steady swimming
 
-S, f = speclev(Aw[DES, : ], 512, fs)
-S, f = speclev(Aw[ASC, : ], 512, fs)
+S, f = speclev(Aw[DES, :], 512, fs)
+S, f = speclev(Aw[ASC, :], 512, fs)
 
 # here the power spectra is calculated of the longitudinal and dorso-ventral
 # accelerometer signals during descents and ascents to determine the dominant
@@ -198,22 +234,22 @@ S, f = speclev(Aw[ASC, : ], 512, fs)
 # calculate the power spectrum of the accelerometer data at the whale frame
 # plot PSD for the whole deployment, all descents and all ascent phases.
 
-FR     = numpy.zeros(6, 1)
-FR[:]  = numpy.nan
+FR = numpy.zeros(6, 1)
+FR[:] = numpy.nan
 FR_mag = FR
-FRl    = numpy.zeros(6, 1)
+FRl = numpy.zeros(6, 1)
 FR1[:] = numpy.nan
 FRlmag = FRl
-FRn    = 0
-cs     = 'bgr'
-va     = {'top', '', 'bottom'}
+FRn = 0
+cs = 'bgr'
+va = {'top', '', 'bottom'}
 
-# whole deployment
-# TODO PLOT
-figure(1)
+S, f = speclev(Aw[k, :], 512, fs)
 
-S, f = speclev(Aw[k, : ], 512, fs)
-
+#* # whole deployment
+#* # TODO PLOT
+#* figure(1)
+#*
 #* ax(1) = subplot(311)
 #*
 #* # TODO check that S.size[1] == 3
@@ -459,14 +495,14 @@ S, f = speclev(Aw[k, : ], 512, fs)
 #*
 #* # 3.2.3 Separate low and high pass filtered acceleration signal using the
 #* #       parameters defined earlier and the function Ahf_Alnf.
-#* #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#* #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #*
 #* Anlf, Ahf, GL, KK = Ahf_Anlf(Aw, fs, FR, f, n, k, [], [])
 #*
 #*
 #* # 3.2.4 calculate the smooth pitch from the low pass filter acceleration signal
 #* # to avoid incorporating signals above the stroking periods
-#* #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#* #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #*
 #* smoothpitch, smoothroll = a2pr(Anlf[k, : ])
 #*
@@ -486,7 +522,7 @@ S, f = speclev(Aw[k, : ], 512, fs)
 #*
 #*
 #* # 4 DEFINE PRECISE DESCENT AND ASCENT PHASES
-#* #==============================================================================
+#* #======================================================================
 #*
 #* Bottom = []
 #*
@@ -599,7 +635,7 @@ S, f = speclev(Aw[k, : ], 512, fs)
 #*
 #*
 #* # 5 ESTIMATE SWIM SPEED
-#* #==============================================================================
+#* #======================================================================
 #*
 #* # degree threshold above which speed can be estimated
 #* th_deg = 30
@@ -619,7 +655,7 @@ S, f = speclev(Aw[k, : ], 512, fs)
 #*
 #*
 #* # 6 ESTIMATE SEAWATER DESNSITY AROUND THE TAGGED WHALES
-#* #==============================================================================
+#* #======================================================================
 #*
 #* # Seawater density estimation
 #* DPT = DTS[:, 0]
@@ -632,7 +668,7 @@ S, f = speclev(Aw[k, : ], 512, fs)
 #*
 #*
 #* # 7 EXTRACT STROKES AND GLIDES
-#* #==============================================================================
+#* #======================================================================
 #*
 #* # it can be done using the body rotations (pry) estimated using the
 #* # magnetometer method, or it can be done using the dorso-ventral axis of the
@@ -643,7 +679,7 @@ S, f = speclev(Aw[k, : ], 512, fs)
 #*
 #*
 #* # 7.1 using the heave high pass filtered acceleration signal,(use n=3)
-#* #------------------------------------------------------------------------------
+#* #----------------------------------------------------------------------
 #*
 #* # units of J are in m/s2 set J and tmax [] until determined.
 #* Anlf, Ahf, GL, KK = Ahf_Anlf(Aw, fs, FR, f, n, k, J=[], tmax=[])
@@ -714,7 +750,7 @@ S, f = speclev(Aw[k, : ], 512, fs)
 #*
 #* # 7.2 using the body rotations (pry) estimated using the
 #* # magnetometer method (use n=1)
-#* #------------------------------------------------------------------------------
+#* #----------------------------------------------------------------------
 #*
 #* MagAcc, pry, Sa, GL, KK = magnet_rot_sa(Aw, Mw, fs, FR, f, alpha, 1, k, J,
 #*                                         tmax)
@@ -829,7 +865,7 @@ S, f = speclev(Aw[k, : ], 512, fs)
 #*
 #*
 #* # 8_MAKE 5SEC SUB-GLIDES
-#* #==============================================================================
+#* #======================================================================
 #*
 #* dur = 5
 #* SGL = splitGL[dur, GL]
@@ -849,7 +885,7 @@ S, f = speclev(Aw[k, : ], 512, fs)
 #*
 #*
 #* # 9 create summary table required for body density
-#* #==============================================================================
+#* #======================================================================
 #*
 #* FR    = 0.4
 #* f     = 0.4
@@ -867,7 +903,7 @@ S, f = speclev(Aw[k, : ], 512, fs)
 #*
 #*
 #* # 10 CALCULATE GLIDE DESC/GLIDE ASC
-#* #==============================================================================
+#* #======================================================================
 #*
 #* dur = 5
 #*
@@ -991,7 +1027,7 @@ S, f = speclev(Aw[k, : ], 512, fs)
 #*
 #*
 #* # 11 Calculate glide ratio
-#* #==============================================================================
+#* #======================================================================
 #*
 #* # TODO G_ratio as numpy record array
 #*
