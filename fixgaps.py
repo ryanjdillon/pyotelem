@@ -1,19 +1,26 @@
 
+def fixgaps(y):
+    '''Linearly interpolates over NaNs in 1D input array x
 
-def fixgaps(x, *args, **kwargs):
-    nargin = sys._getframe(1).f_locals['nargin']
-    varargin = sys._getframe(1).f_locals['varargin']
-    nargout = sys._getframe(1).f_locals['nargout']
+    Args
+    ----
+    x: array containing NaNs to interpolate over
+    Returns
+    -------
+    y_interp: array with NaN values replaced by interpolated values
+    '''
+    import numpy
 
-    # FIXGAPS Linearly interpolates gaps in a time series
-# YOUT=FIXGAPS(YIN) linearly interpolates over NaN
-# in the input time series (may be complex), but ignores
-# trailing and leading NaN.
+    # Boolean mask for all values not equal to NaN in input array
+    not_nan = ~numpy.isnan(y)
 
-    # R. Pawlowicz 6/Nov/99
+    # x values for array elements to be interpolated
+    xp = numpy.where(not_nan)
 
-    y = copy(x)
-    bd = isnan(x)
-    gd = find(logical_not(bd))
-    bd[cat(range(1, (min(gd) - 1)), range((max(gd) + 1), end()))] = 0
-    y[bd] = interp1(gd, x[gd], find(bd))
+    # y values for array elements to be interpolated
+    yp = y[not_nan]
+
+    x_interp = numpy.arange(len(x))
+    y_interp = numpy.interp(x_interp, xp, yp)
+
+    return y_interp
