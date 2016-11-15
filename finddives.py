@@ -1,3 +1,122 @@
+def plot_two(dv0, dv1, p, dp, t_on, t_off):
+    '''Plots depths and delta depths with dive start stop markers'''
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure()
+
+    ax1 = fig.add_subplot(211)
+    ax2 = fig.add_subplot(212)
+
+    ax1.title.set_text('Dives')
+
+    x0   = t_on[dv0:dv1] - t_on[dv0]
+    x1   = t_off[dv0:dv1] - t_on[dv0]
+
+    # Extract start end depths
+    y0_p = p[t_on[dv0:dv1]]
+    y1_p = p[t_off[dv0:dv1]]
+
+    # Extract start end delta depths
+    y0_dp = dp[t_on[dv0:dv1]]
+    y1_dp = dp[t_off[dv0:dv1]]
+
+    start = t_on[dv0]
+    stop  = t_off[dv1]
+    ax1.plot(range(len(p[start:stop])), p[start:stop])
+    ax1.scatter(x0, y0_p, color='red', label='start')
+    ax1.scatter(x1, y1_p, color='blue', label='stop')
+    ax1.set_ylabel('depth (m)')
+
+    ax2.plot(range(len(dp[start:stop])), dp[start:stop])
+    ax2.scatter(x0, y0_dp, color='red', label='start')
+    ax2.scatter(x1, y1_dp, color='blue', label='stop')
+    ax2.set_ylabel('depth (dm/t)')
+    ax2.set_xlabel('sample')
+
+    for ax in [ax1, ax2]:
+        ax.legend(loc='upper right')
+        ax.set_xlim([-50, len(dp[start:stop])+50])
+
+    plt.show()
+
+
+def test_contiguous_regions():
+    import numpy
+
+    x = numpy.arange(-10,10, 0.01)
+    y= -x**2 + x + 10
+    condition = y > 0
+    start, stop = contiguous_regions(condition)
+    # Assert that both
+
+    assert (round(y[start[0]])==0) & (round(y[stop[0]])==0)
+
+def contiguous_regions(condition):
+    '''Finds contiguous True regions of the boolean array 'condition'.
+
+    Args
+    ----
+    condition
+
+    Returns
+    -------
+    an array with the start indices of the region
+    an array with the stop indices of the region
+
+    http://stackoverflow.com/a/4495197/943773
+    '''
+    import numpy
+
+    # Find the indicies of changes in 'condition'
+    d = numpy.diff(condition)
+    idx, = d.nonzero()
+
+
+    if condition[0]:
+        # If the start of condition is True prepend a 0
+        idx = numpy.r_[0, idx]
+
+    if condition[-1]:
+        # If the end of condition is True, append the length of the array
+        idx = numpy.r_[idx, condition.size] # Edit
+
+    # Reshape the result into two columns
+    idx.shape = (-1,2)
+
+    # We need to start things after the change in 'condition'. Therefore,
+    # we'll shift the index by 1 to the right.
+    start = idx[:,0] + 1
+    # keep the stop ending just before the change in condition
+    stop  = idx[:,1]
+
+    # remove reversed or same start/stop index
+    good_vals = (stop-start) > 0
+    start = start[good_vals]
+    stop = stop[good_vals]
+
+    return start, stop
+
+
+def calc_filter_dp(depths_m, cutoff, fs):
+    '''Calculate the delta depth over time and filter to cuttoff frequency'''
+    import numpy
+    import scipy.signal
+
+    from biotelem.acc import accfilter
+
+    # Nyquist frequency
+    nyq = fs/2.0
+    # Calculate normalized cutoff freq with nyquist f
+    dp_w = cutoff / nyq
+
+    depth_fs = numpy.hstack(([0], numpy.diff(depths_m))) * fs
+    #b, a     = scipy.signal.butter(4, dp_w, btype='low')
+    #dp       = scipy.signal.filtfilt(b, a, depth_fs)
+    b, a = accfilter.butter_lowpass(cutoff, fs)
+    dp = accfilter.butter_apply(b, a, depth_fs)
+
+    return dp
+
 
 def finddives(depths_m, fs, thresh=10, surface=1, findall=False):
     '''Find time cues for the edges of dives.
@@ -25,78 +144,64 @@ def finddives(depths_m, fs, thresh=10, surface=1, findall=False):
              surface will appear in T.
     '''
     import numpy
-    import scipy.signal
 
     if fs > 1000:
         raise SystemError('Suspicious fs of {} Hz - check '.format(round(fs)))
 
     search_len = 20
     dp_thresh  = 0.25
+    # Cutoff frequency
     dp_lowpass = 0.5
+    # TODO remove or include somehow
+    cutoff = 0.15
 
     # first remove any NaN at the start of depths_m
     # (these are used to mask bad data points and only occur in a few data sets)
     idx_good   = ~numpy.isnan(depths_m)
     depths_m   = depths_m[idx_good]
-    t_good     = (min(numpy.where(idx_good)) - 1) / fs
+    t_good     = (min(idx_good) - 1) / fs
 
-    # find threshold crossings and surface times
-    t_thresh = numpy.where(numpy.diff(depths_m > thresh) > 0)[0]
-    t_surf   = numpy.where(depths_m < surface)
-    t_on     = numpy.zeros(len(t_thresh))
-    t_off    = numpy.zeros(len(t_thresh))
+    condition = depths_m > thresh
+    t_on, t_off = contiguous_regions(condition)
 
-    # Test if numpy array is empty
-    notempty = lambda x:~x.size != 0
-
-    # sort through threshold crossings to find valid dive start and end points
-    j = 0
-    for i in range(len(t_thresh)):
-        if all(t_thresh[i] > t_off):
-            idx_s0 = numpy.where(t_surf < t_thresh[i])
-            idx_s1 = numpy.where(t_surf > t_thresh[i])
-            # Findall forces incomplete dives to included, see docstring
-            if findall or (notempty(idx_s0) and notempty(idx_s1)):
-                j += 1
-
-                if idx_s0 == 0:
-                    t_on[j] = 1
-                else:
-                    t_on[j] = max(t_surf[idx_s0])
-
-                if idx_s1 == 0:
-                    t_off[j] = len(depths_m)
-                else:
-                    t_off[j] = min(t_surf[idx_s1])
-
-    # truncate dive list to only dives with starts and stops in the record
-    t_on  = t_on[:j]
-    t_off = t_off[:j]
+    # TODO needed?
+    ## truncate dive list to only dives with starts and stops in the record
+    #t_on  = t_on[:j]
+    #t_off = t_off[:j]
 
     # filter vertical velocity to find actual surfacing moments
-    depth_fs = numpy.hstack(([0], numpy.diff(depths_m))) * fs
-    b, a     = scipy.signal.butter(4, dp_lowpass / (fs / 2), btype='low')
-    dp       = scipy.signal.filtfilt(b, a, depth_fs)
+    # TODO remove
+
+    dp = calc_filter_dp(depths_m, cutoff, fs)
 
     # Search for surface events
-    dive_max = numpy.zeros((len(t_on), 2))
+    dive_max = numpy.zeros((2, len(t_on)))
     for i in range(len(t_on)):
         # for each t_on, look back to find last time whale was at the surface
-        ind    = t_on[i] + numpy.asarray(range(round(search_len * fs), 0, -1))
-        ind    = ind[numpy.where(ind > 0)]
-        idx_i  = max(numpy.where(dp[ind] < dp_thresh))
+        ind = t_on[i] - numpy.arange(round(search_len*fs), 0, -1)
+        ind = ind[ind >= 0]
+        try:
+            idx_i   = numpy.max(numpy.where(dp[ind] < dp_thresh)[0])
+            t_on[i] = ind[idx_i]
+        except ValueError:
+            t_on[i] = 0
 
         # for each t_off, look forward to find next time whale is at the surface
-        t_on[i] = ind[idx_i]
-        ind     = t_off[i] + numpy.asarray(range(round(search_len*fs)))
-        ind     = ind[numpy.where(ind <= len(depths_m))]
-        idx_i   = min(numpy.where(dp[ind] > -dp_thresh))
+        ind = t_off[i] + numpy.arange(round(search_len*fs))
+        ind = ind[ind <= len(dp)-1]
+        try:
+            idx_i    = numpy.min(numpy.where(dp[ind] > -dp_thresh)[0])
+            t_off[i] = ind[idx_i]
+        except ValueError:
+            t_on[i] = len(dp)-1
 
-        t_off[i] = ind[idx_i]
-        dm, km   = max(depths_m[t_on[i]:t_off[i]])
+        # Get max dive depth, and index of max dive depth
+        dm   = numpy.max(depths_m[t_on[i]:t_off[i]])
+        km   = numpy.argmax(depths_m[t_on[i]:t_off[i]])
 
         # Append `dm` to front of derived dive_max array
-        dive_max[k, :] = numpy.hstack((dm, (t_on[i] + km - 1)/fs + t_good))
+        # TODO remove -1 from t_on + km -1 for python indexing?
+        dive_max[:, i] = numpy.hstack((dm, (t_on[i] + km)/fs + t_good))
 
     # Raise error if dives not found in depth data
     if len(t_on) < 1:
@@ -114,6 +219,6 @@ def finddives(depths_m, fs, thresh=10, surface=1, findall=False):
 
     # assemble output
     t_mod = (numpy.vstack((t_on, t_off)) / fs) + t_good
-    T = numpy.vstack((t_mod, dive_max, depth_mean, depth_comp)).T
+    T = numpy.vstack((t_mod.astype(int), dive_max, depth_mean, depth_comp)).T
 
     return T
