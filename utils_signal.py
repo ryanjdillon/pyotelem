@@ -8,6 +8,73 @@
 #     * see Haar wavelet SWT denoising
 
 
+def findzc(x, thresh, t_max=None):
+    '''
+    Find cues to each zero-crossing in vector x.
+
+    To be accepted as a zero-crossing, the signal must pass from below
+    -thresh to above thresh, or vice versa, in no more than t_max samples.
+
+    Args
+    ----
+    thresh: magnitude threshold for detecting a zero-crossing.
+    t_max:  (optional) maximum duration in samples between threshold
+            crossings.
+
+    Returns
+    -------
+    K: nx3 matrix [Ks,Kf,S]
+       where:
+       * Ks contains the cue of the first threshold-crossing in samples
+       * Kf contains the cue of the second threshold-crossing in samples
+       * S contains the sign of each zero-crossing
+         (1 = positive-going, -1 = negative-going).
+
+    This routine is a reimplementation of Mark Johnson's dtag_toolbox method
+    and tested against the Matlab version to be sure it has the same result.
+    '''
+    # positive threshold: p (over) n (under)
+    pt_p = data > thresh
+    pt_n = ~pt_p
+
+    # negative threshold: p (over) n (under)
+    nt_n = data < -thresh
+    nt_p = ~nt_n
+
+    # Over positive threshold +thresh
+    # neg to pos
+    pt_np = (pt_p[:-1] & pt_n[1:]).nonzero()[0]
+    # pos to neg
+    pt_pn = (pt_n[:-1] & pt_p[1:]).nonzero()[0] + 1
+
+    # Over positive threshold +thresh
+    # neg to pos
+    nt_np = (nt_p[:-1] & nt_n[1:]).nonzero()[0] + 1
+    # pos to neg
+    nt_pn = (nt_n[:-1] & nt_p[1:]).nonzero()[0]
+
+    # Concat indices, order sequentially, the reshape to nx2 array
+    ind = numpy.hstack((pt_np, nt_np, pt_pn, nt_pn))
+    ind.sort()
+    ind = ind.reshape((int(len(ind)/2), 2))
+
+    # Omit rows where just touching but not crossing
+    crossing_mask = ~(numpy.diff(numpy.sign(x[ind])).ravel() == 0)
+    ind = ind[crossing_mask]
+
+    # Add column of direction of crossing (-1: neg to pos, 1: pos to neg)
+    # Need transpose ind array, stack, then transpose back for some reason
+    K = numpy.vstack((ind.T, numpy.sign(x[ind])[:,1])).T
+
+    # TODO not mentioned in docstring, remove?
+    #x_norm? = ((X[:, 1] * K[:, 0]) - (X[:, 0] * K[:, 1])) / X[:, 1] - X[:, 0]
+
+    if t_max:
+        K = K[K[:, 1] - K[:, 0] <= t_max, :]
+
+    return K
+
+
 def runmean(x, n):
     '''Perform running mean on x with window width n using numpy convolve
 
