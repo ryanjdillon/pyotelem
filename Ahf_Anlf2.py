@@ -27,18 +27,6 @@ def Ahf_Anlf(A_afr, fs, stroke_f_hz, f_frac, n, col, J=None, t_max=None):
 
     col:           sample range over which to analyse.
 
-    J:           magnitude threshold for detecting a fluke stroke in m/s2.  If
-                 J is not given, fluke strokes will not be located but the
-                 rotations signal (pry) will be computed.If no J is given or
-                 J=[], no GL and KK output will be generated.
-
-    t_max:       maximum duration allowable for a fluke stroke in seconds.  A
-                 fluke stroke is counted whenever there is a cyclic variation
-                 in the pitch deviation with peak-to-peak magnitude greater
-                 than +/-J and consistent with a fluke stroke duration of less
-                 than t_max seconds, e.g., for Mesoplodon choose t_max=4.  If
-                 no t_max is given or t_max=[], no GL and KK output will be
-                 generated.
 
     Returns
     -------
@@ -46,14 +34,6 @@ def Ahf_Anlf(A_afr, fs, stroke_f_hz, f_frac, n, col, J=None, t_max=None):
                represents the slowly-varying postural changes, in m/s2.
                Normalization is to a field vector intensity of 1.  Ahf =
                high-pass filtered 3-axis acceleration signal, in m/s2.
-
-    GL:        matrix containing the start time (first column) and end time
-               (2nd column) of any glides (i.e., no zero crossings in t_max or
-               more seconds).Times are in seconds.
-
-    KK:        matrix of cues to zero crossings in seconds (1st column) and
-               zero-crossing directions (2nd column). +1 means a positive-going
-               zero-crossing. Times are in seconds.
 
     NOTE
     ----
@@ -101,35 +81,6 @@ def Ahf_Anlf(A_afr, fs, stroke_f_hz, f_frac, n, col, J=None, t_max=None):
     # if needed
     A_norm_hf = A_norm_afr - A_norm_lf
 
-    if isempty(J) or isempty(t_max):
-        GL = None
-        KK = None
-        print( 'Cues for strokes(KK) and glides (GL) are not given as J and '
-               't_max are not set')
-    else:
-        # Find cues to each zero-crossing in vector pry(:,n), rotations around
-        # the n axis.
-        K = utils.findzc(A_norm_hf[:, n], J, (t_max* fs) / 2)
+    return A_norm_lf, A_norm_hf
 
-        k = numpy.where(K[1:-1, 0] - K[0:-2, 1] > fs*t_max)
-        glk = numpy.hstack(K[k, 0] - 1, K[k + 1, 1] + 1)
 
-        glc = round(numpy.mean(glk, 1))
-        for i in range(len(glc)):
-            col = range(glc[i], glk[i, 0], - 1)
-            test = numpy.where(numpy.isnan(A_norm_hf[col, n]))
-            if test.size != 0:
-                glc[i]    = numpy.nan
-                glk[i,0] = numpy.nan
-                glk[i,1] = numpy.nan
-            else:
-                glk[i,0] = glc[i] - numpy.where(abs(A_norm_hf[col, n]) >= J) + 1
-                col      = range(glc[i], glk[i, 1])
-                glk[i,1] = glc[i] + numpy.where(abs(A_norm_hf[col, n]) >= J) - 1
-
-        # convert sample numbers to times in seconds
-        KK = numpy.hstack(numpy.mean(K[:, 0:1], 1) / fs, K[:, 2])
-        GL = glk / fs
-        GL = GL[numpy.where(GL[:, 1] - GL[:, 0] > t_max / 2), :]
-
-    return A_norm_lf, A_norm_hf, GL, KK
