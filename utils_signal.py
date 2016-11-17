@@ -17,28 +17,34 @@ def findzc(x, thresh, t_max=None):
 
     Args
     ----
-    thresh: magnitude threshold for detecting a zero-crossing.
-    t_max:  (optional) maximum duration in samples between threshold
-            crossings.
+    thresh: (float)
+        magnitude threshold for detecting a zero-crossing.
+    t_max: (int)
+        maximum duration in samples between threshold crossings.
 
     Returns
     -------
-    K: nx3 matrix [Ks,Kf,S]
-       where:
-       * Ks contains the cue of the first threshold-crossing in samples
-       * Kf contains the cue of the second threshold-crossing in samples
-       * S contains the sign of each zero-crossing
-         (1 = positive-going, -1 = negative-going).
+    zc: nx3 matrix [zc_s,zc_f,S]
+        array containing the start, finish and direction of zero crossings
+
+        where:
+
+        * zc_s contains the cue of the first threshold-crossing in samples
+        * zc_f contains the cue of the second threshold-crossing in samples
+        * S contains the sign of each zero-crossing
+          (1 = positive-going, -1 = negative-going).
 
     This routine is a reimplementation of Mark Johnson's dtag_toolbox method
     and tested against the Matlab version to be sure it has the same result.
     '''
+    import numpy
+
     # positive threshold: p (over) n (under)
-    pt_p = data > thresh
+    pt_p = x > thresh
     pt_n = ~pt_p
 
     # negative threshold: p (over) n (under)
-    nt_n = data < -thresh
+    nt_n = x < -thresh
     nt_p = ~nt_n
 
     # Over positive threshold +thresh
@@ -53,26 +59,40 @@ def findzc(x, thresh, t_max=None):
     # pos to neg
     nt_pn = (nt_n[:-1] & nt_p[1:]).nonzero()[0]
 
-    # Concat indices, order sequentially, the reshape to nx2 array
-    ind = numpy.hstack((pt_np, nt_np, pt_pn, nt_pn))
-    ind.sort()
-    ind = ind.reshape((int(len(ind)/2), 2))
+    # Concat indices, order sequentially
+    ind_all = numpy.hstack((pt_np, nt_np, pt_pn, nt_pn))
+    ind_all.sort()
 
     # Omit rows where just touching but not crossing
-    crossing_mask = ~(numpy.diff(numpy.sign(x[ind])).ravel() == 0)
-    ind = ind[crossing_mask]
+    crossing_mask = ~(numpy.diff(numpy.sign(x[ind_all])) == 0)
 
-    # Add column of direction of crossing (-1: neg to pos, 1: pos to neg)
-    # Need transpose ind array, stack, then transpose back for some reason
-    K = numpy.vstack((ind.T, numpy.sign(x[ind])[:,1])).T
+    # Append a False to make the same length as ind_all
+    crossing_mask = numpy.hstack((crossing_mask, False))
+
+    # Get 1st and 2nd crossings
+    ind_1stx = ind_all[crossing_mask]
+    ind_2ndx = ind_all[numpy.where(crossing_mask)[0]+1]
+
+    # TODO odd option to replace with NaNs rather than delete?
+    # Delete indices that do not have a second crossing
+    del_ind = numpy.where(ind_2ndx > len(x)-1)[0]
+    for i in del_ind:
+        ind_1stx = numpy.delete(ind_1stx, i)
+        ind_2ndx = numpy.delete(ind_1stx, i)
+
+    # Get direction/sign of crossing
+    signs = numpy.sign(x[ind_1stx])*-1
+
+    # Add column of direction and transpose
+    zc = numpy.vstack((ind_1stx, ind_2ndx, signs)).T
 
     # TODO not mentioned in docstring, remove?
-    #x_norm? = ((X[:, 1] * K[:, 0]) - (X[:, 0] * K[:, 1])) / X[:, 1] - X[:, 0]
+    #x_norm? = ((x[:, 1] * zc[:, 0]) - (x[:, 0] * zc[:, 1])) / x[:, 1] - x[:, 0]
 
     if t_max:
-        K = K[K[:, 1] - K[:, 0] <= t_max, :]
+        zc = zc[zc[:, 1] - zc[:, 0] <= t_max, :]
 
-    return K
+    return zc.astype(int)
 
 
 def runmean(x, n):
@@ -342,7 +362,7 @@ def simple_fft(x):
     return S_fft
 
 
-def peakfinder(x, sel=None, thresh=0, extrema=None):
+def peakfinder(x, sel=None, peak_thresh=0, extrema=None):
     '''
     PEAKFINDER Noise tolerant fast peak finding algorithm
 
@@ -350,46 +370,39 @@ def peakfinder(x, sel=None, thresh=0, extrema=None):
 
     Args
     ----
-    x0:      A real vector from the maxima will be found (required)
+    x0: (1-D ndarray)
+        A real vector from the maxima will be found (required)
 
-    sel:     The amount above surrounding data for a peak to be identified
-             (default = (max(x0)-min(x0))/4). Larger values mean the algorithm
-             is more selective in finding peaks.
+    sel: (float)
+        The amount above surrounding data for a peak to be identified
+        (default = (max(x0)-min(x0))/4). Larger values mean the algorithm is
+        more selective in finding peaks.
 
-    thresh:  A threshold value which peaks must be larger than to be maxima or
-             smaller than to be minima.
+    peak_thresh: (float)
+        A threshold value which peaks must be larger than to be maxima or
+        smaller than to be minima.
 
-    extrema: 1 if maxima are desired, -1 if minima are desired
-             (default = maxima, 1)
+    extrema: (integer)
+        1 if maxima are desired -1 if minima are desired (default = maxima, 1)
 
     Returns
     -------
-    peakLoc: The indicies of the identified peaks in x0
+    peakLoc: (1-D ndarray)
+        The indicies of the identified peaks in x0
 
-    peakMag: The magnitude of the identified peaks
+    peakMag: (ndarray)
+        The magnitude of the identified peaks
 
-    [peakLoc] = peakfinder(x0) returns the indicies of local maxima that
-        are at least 1/4 the range of the data above surrounding data.
+    Examples
+    --------
+    .. note: If repeated values are found the first is identified as the peak
 
-    [peakLoc] = peakfinder(x0,sel) returns the indicies of local maxima
-        that are at least sel (default 1/4 the range of the data) above
-        surrounding data.
-
-
-    Note: If repeated values are found the first is identified as the peak
-
-    Ex:
-    peak_loc, peak_mag = peakfinder(x0,sel,thresh)
-
-    returns the indicies and magnitude of local maxima that are at least sel
+    Return the indicies and magnitude of local maxima that are at least sel
     above surrounding data and larger (smaller) than thresh if you are finding
     maxima (minima). returns the maxima of the data if extrema > 0 and the
-    minima of the data if extrema < 0
+    minima of the data if extrema < 0::
 
-    t = 0:.0001:10;
-    x = 12*sin(10*2*pi*t)-3*sin(.1*2*pi*t)+randn(1,numel(t));
-    x(1250:1255) = max(x);
-    peakfinder(x)
+        peak_loc, peak_mag = peakfinder(x0,sel,peak_thresh)
 
     Implemented to take the same arguments and return the same output as the
     peakfinder.m routine written by Nathanael C. Yoder 2011 (nyoder@gmail.com)
@@ -397,9 +410,8 @@ def peakfinder(x, sel=None, thresh=0, extrema=None):
     import numpy
     import scipy.signal
 
-    # TODO inversed this for find_peaks_cwt(), change to something more logical
     if sel == None:
-        sel = 4/(max(x)-min(x))
+        sel = (max(x)-min(x))/4
 
     # TODO handle extrema arg for returning minima
 
@@ -419,10 +431,20 @@ def peakfinder(x, sel=None, thresh=0, extrema=None):
     if peak_loc.size == 0:
         raise IndexError('No peak locations found')
 
-    peak_loc = peak_loc[x[peak_loc]>thresh]
+    peak_loc = peak_loc[x[peak_loc]>peak_thresh]
     peak_mag = x[peak_loc]
 
     return peak_loc, peak_mag
+
+# TODO finish test
+#def test_peakfinder():
+#    t = 0:.0001:10;
+#    x = 12*sin(10*2*pi*t)-3*sin(.1*2*pi*t)+randn(1,numel(t));
+#    x(1250:1255) = max(x);
+#
+#    peak_loc, peak_mag = peakfinder(x)
+#
+#    assert peak_loc = 
 
 
 def fir_nodelay(x, n, fp, qual=None):
