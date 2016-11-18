@@ -1,3 +1,49 @@
+def contiguous_regions(condition):
+    '''Finds contiguous True regions of the boolean array 'condition'.
+
+    Args
+    ----
+    condition
+
+    Returns
+    -------
+    an array with the start indices of the region
+    an array with the stop indices of the region
+
+    http://stackoverflow.com/a/4495197/943773
+    '''
+    import numpy
+
+    # Find the indicies of changes in 'condition'
+    d = numpy.diff(condition)
+    idx, = d.nonzero()
+
+
+    if condition[0]:
+        # If the start of condition is True prepend a 0
+        idx = numpy.r_[0, idx]
+
+    if condition[-1]:
+        # If the end of condition is True, append the length of the array
+        idx = numpy.r_[idx, condition.size] # Edit
+
+    # Reshape the result into two columns
+    idx.shape = (-1,2)
+
+    # We need to start things after the change in 'condition'. Therefore,
+    # we'll shift the index by 1 to the right.
+    start = idx[:,0] + 1
+    # keep the stop ending just before the change in condition
+    stop  = idx[:,1]
+
+    # remove reversed or same start/stop index
+    good_vals = (stop-start) > 0
+    start = start[good_vals]
+    stop = stop[good_vals]
+
+    return start, stop
+
+
 def recursive_input(input_label, type_class):
     '''General user input function
 

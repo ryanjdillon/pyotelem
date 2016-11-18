@@ -1,3 +1,46 @@
+def plot_dives(dv0, dv1, p, dp, t_on, t_off):
+    '''Plots depths and delta depths with dive start stop markers'''
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure()
+
+    ax1 = fig.add_subplot(211)
+    ax2 = fig.add_subplot(212)
+
+    ax1.title.set_text('Dives')
+
+    x0   = t_on[dv0:dv1] - t_on[dv0]
+    x1   = t_off[dv0:dv1] - t_on[dv0]
+
+    # Extract start end depths
+    y0_p = p[t_on[dv0:dv1]]
+    y1_p = p[t_off[dv0:dv1]]
+
+    # Extract start end delta depths
+    y0_dp = dp[t_on[dv0:dv1]]
+    y1_dp = dp[t_off[dv0:dv1]]
+
+    start = t_on[dv0]
+    stop  = t_off[dv1]
+    ax1.plot(range(len(p[start:stop])), p[start:stop])
+    ax1.scatter(x0, y0_p, color='red', label='start')
+    ax1.scatter(x1, y1_p, color='blue', label='stop')
+    ax1.set_ylabel('depth (m)')
+
+    ax2.plot(range(len(dp[start:stop])), dp[start:stop])
+    ax2.scatter(x0, y0_dp, color='red', label='start')
+    ax2.scatter(x1, y1_dp, color='blue', label='stop')
+    ax2.set_ylabel('depth (dm/t)')
+    ax2.set_xlabel('sample')
+
+    for ax in [ax1, ax2]:
+        ax.legend(loc='upper right')
+        ax.set_xlim([-50, len(dp[start:stop])+50])
+
+    plt.show()
+
+    return None
+
 
 def plot_noncontiguous(ax, data, ind, label=''):
     '''Plot non-contiguous slice of data
@@ -140,17 +183,24 @@ def plot_descent_ascent(A, DES, ASC):#, fs_a
     return None
 
 
-def plot_pitch_roll(pitch, roll, smooth_pitch, smooth_roll):
+def plot_pitch_roll(pitch, roll, pitch_lf, roll_lf):
     import matplotlib.pyplot as plt
+    import numpy
 
-    fig, (ax1, ax2) = plt.subplots((2,2), sharex='col')
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex='col')
 
-    ax1.plot(range(len(pitch)), pitch * 180 / numpy.pi)
-    ax1.plot(range(len(smooth_pitch)), smooth_pitch * 180 / numpy.pi)
+    rad2deg = lambda x: x*180/numpy.pi
 
-    ax2.plot(range(len(roll)), roll * 180 / numpy.pi)
-    ax2.plot(range(len(smooth_roll)), smooth_roll * 180 / numpy.pi)
+    ax1.plot(range(len(pitch)), rad2deg(pitch), label='original')
+    ax1.plot(range(len(pitch_lf)), rad2deg(pitch_lf), label='filtered')
+    ax1.title.set_text('Pitch')
 
+    ax2.plot(range(len(roll)), rad2deg(roll), label='original')
+    ax2.plot(range(len(roll_lf)), rad2deg(roll_lf), label='filtered')
+    ax2.title.set_text('Roll')
+
+    plt.ylabel('Degrees')
+    plt.xlabel('Samples')
     ax1.legend(loc="upper right")
     ax2.legend(loc="upper right")
 
