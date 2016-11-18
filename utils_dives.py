@@ -55,6 +55,8 @@ def finddives(depths_m, fs, thresh=10, surface=1, findall=False):
     '''
     import numpy
 
+    import utils
+
     if fs > 1000:
         raise SystemError('Suspicious fs of {} Hz - check '.format(round(fs)))
 
@@ -72,7 +74,7 @@ def finddives(depths_m, fs, thresh=10, surface=1, findall=False):
     t_good     = (min(idx_good) - 1) / fs
 
     condition = depths_m > thresh
-    t_on, t_off = contiguous_regions(condition)
+    t_on, t_off = utils.contiguous_regions(condition)
 
     # TODO needed?
     ## truncate dive list to only dives with starts and stops in the record
@@ -132,6 +134,7 @@ def finddives(depths_m, fs, thresh=10, surface=1, findall=False):
     T = numpy.vstack((t_mod.astype(int), dive_max, depth_mean, depth_comp)).T
 
     return T
+
 
 def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
     '''Return indices for descent and ascent periods of dives in T
@@ -270,5 +273,3 @@ def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
     T = numpy.delete(T, bad_dives, 0)
 
     return T, DES, ASC, phase, bottom
-
-
