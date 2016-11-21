@@ -273,3 +273,13 @@ def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
     T = numpy.delete(T, bad_dives, 0)
 
     return T, DES, ASC, phase, bottom
+
+
+def get_dive_mask(depths, T, fs):
+    '''Get boolean mask of values in depths that are dives'''
+
+    isdive = numpy.zeros(depths.size, dtype=bool)
+    for i in range(T.shape[0]):
+        isdive[int(T[i, 0] * fs) : int(T[i, 1] * fs)] = True
+
+    return isdive
