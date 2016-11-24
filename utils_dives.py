@@ -141,7 +141,6 @@ def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
 
     3.1 quick separation of descent and ascent phases
     '''
-    import click
     import numpy
 
     import utils
@@ -167,106 +166,103 @@ def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
         depth_mask = depths > (min_dive_def * .75)
 
     # Get start, end indexs and dive stats for each dive
-    with click.progressbar(range(len(T))) as dive_bar:
-        for dive in dive_bar:
-            # get list of indices to select the whole dive
-            # multiply by acc sampling rate to scale indices
-            idx0 = numpy.floor(fs_a * T[dive, 0])
-            idx1 = numpy.floor(fs_a * T[dive, 1])
-            ind = numpy.arange(idx0, idx1, dtype=int)
+    for dive in range(len(T)):
+        # get list of indices to select the whole dive
+        # multiply by acc sampling rate to scale indices
+        idx0 = numpy.floor(fs_a * T[dive, 0])
+        idx1 = numpy.floor(fs_a * T[dive, 1])
+        ind = numpy.arange(idx0, idx1, dtype=int)
 
-            # Convert kk indices to boolean mask
-            dive_mask = numpy.zeros(depths.size, dtype=bool)
-            dive_mask[ind] = True
+        # Convert kk indices to boolean mask
+        dive_mask = numpy.zeros(depths.size, dtype=bool)
+        dive_mask[ind] = True
 
-            # If passed add dive mask with dives where depth > min_dive_def
-            if min_dive_def:
-                dive_mask = dive_mask & depth_mask
+        # If passed add dive mask with dives where depth > min_dive_def
+        if min_dive_def:
+            dive_mask = dive_mask & depth_mask
 
-            try:
+        try:
 
-                # Find first index after diving below min_dive_def
-                # (pitch is positive)
-                end_pitch_mask = numpy.rad2deg(pitch[dive_mask]) > 0
-                end_pitch      = numpy.where(end_pitch_mask)[0][0]
-                end_des        = end_pitch + (T[dive, 0] * fs_a)
+            # Find first index after diving below min_dive_def
+            # (pitch is positive)
+            end_pitch_mask = numpy.rad2deg(pitch[dive_mask]) > 0
+            end_pitch      = numpy.where(end_pitch_mask)[0][0]
+            end_des        = end_pitch + (T[dive, 0] * fs_a)
 
-                # Find last index before diving above min_dive_def
-                # (pitch is negative)
-                start_pitch_mask = numpy.rad2deg(pitch[dive_mask]) < 0
-                start_pitch      = numpy.where(start_pitch_mask)[0][-1]
-                start_asc        = start_pitch + (T[dive, 0] * fs_a)
+            # Find last index before diving above min_dive_def
+            # (pitch is negative)
+            start_pitch_mask = numpy.rad2deg(pitch[dive_mask]) < 0
+            start_pitch      = numpy.where(start_pitch_mask)[0][-1]
+            start_asc        = start_pitch + (T[dive, 0] * fs_a)
 
-                if manual==False:
-                    # selects the whole descent phase
-                    des = list(range(int(fs_a * T[dive, 0]), int(end_des)))
+            if manual==False:
+                # selects the whole descent phase
+                des = list(range(int(fs_a * T[dive, 0]), int(end_des)))
 
-                    # selects the whole ascent phase
-                    asc = list(range(int(start_asc), int(fs_a * T[dive, 1])))
-                elif manual==True:
-                    # TODO implement plotting
-                    import warnings
-                    warnings.warn('Manual dive descent/ascent selection has '
-                                  'not been implemented. Proceeding with '
-                                  'whole descent/ascent phase indicies')
+                # selects the whole ascent phase
+                asc = list(range(int(start_asc), int(fs_a * T[dive, 1])))
+            elif manual==True:
+                # TODO implement plotting
+                import warnings
+                warnings.warn('Manual dive descent/ascent selection has '
+                              'not been implemented. Proceeding with '
+                              'whole descent/ascent phase indicies')
 
-                    # selects the whole descent phase
-                    des = list(range(int(fs_a * T[dive, 0]), int(end_des)))
+                # selects the whole descent phase
+                des = list(range(int(fs_a * T[dive, 0]), int(end_des)))
 
-                    # selects the whole ascent phase
-                    asc = list(range(int(start_asc), int(fs_a * T[dive, 1])))
+                # selects the whole ascent phase
+                asc = list(range(int(start_asc), int(fs_a * T[dive, 1])))
 
-                    # if you want to do it manually as some times there is a
-                    # small ascent where pitch angle first goes to zero & last
-                    # goes to zero in the ascent
+                # if you want to do it manually as some times there is a
+                # small ascent where pitch angle first goes to zero & last
+                # goes to zero in the ascent
 
-                    # phase during the descent and a small descent phase during
-                    # the ascent.
-                    #     figure
-                    #     # plott plots sensor data against a time axis
-                    #     ax(1)=subplot(211) plott(depths[ind],fs_a)
-                    #     ax(2)=subplot(212) plott(pitch[ind]*180/pi,fs_a,0)
-                    #     # links x axes of the subplots for zoom/pan
-                    #     linkaxes(ax, 'x')
+                # phase during the descent and a small descent phase during
+                # the ascent.
+                #     figure
+                #     # plott plots sensor data against a time axis
+                #     ax(1)=subplot(211) plott(depths[ind],fs_a)
+                #     ax(2)=subplot(212) plott(pitch[ind]*180/pi,fs_a,0)
+                #     # links x axes of the subplots for zoom/pan
+                #     linkaxes(ax, 'x')
 
-                    #     # click on where the pitch angle first goes to zero
-                    #     # in the descent and last goes to zero in the ascent
-                    #     [x,y]=ginput(2)
-                    #     des=round(x[1])/fs_a+T[dive,0]
-                    #     asc=round(x[2])/fs_a+T[dive,0]
+                #     # click on where the pitch angle first goes to zero
+                #     # in the descent and last goes to zero in the ascent
+                #     [x,y]=ginput(2)
+                #     des=round(x[1])/fs_a+T[dive,0]
+                #     asc=round(x[2])/fs_a+T[dive,0]
 
-                # Concatenate lists
-                DES += des
-                ASC += asc
+            # Concatenate lists
+            DES += des
+            ASC += asc
 
-                print(end_des, ind.shape)
+            phase[ind[ind < end_des]] = -1
+            phase[ind[(ind < start_asc) & (ind > end_des)]] = 0
+            phase[ind[ind > start_asc]] = 1
 
-                phase[ind[ind < end_des]] = -1
-                phase[ind[(ind < start_asc) & (ind > end_des)]] = 0
-                phase[ind[ind > start_asc]] = 1
+            # Time in seconds at the start of bottom phase
+            # (end of descent)
+            bottom[dive, 0] = end_des / fs_a
 
-                # Time in seconds at the start of bottom phase
-                # (end of descent)
-                bottom[dive, 0] = end_des / fs_a
+            # Depth in m at the start of the bottom phase
+            # (end of descent phase)
+            bottom[dive, 1] = depths[end_des]
 
-                # Depth in m at the start of the bottom phase
-                # (end of descent phase)
-                bottom[dive, 1] = depths[end_des]
+            # Time in seconds at the end of bottom phase
+            # (start of descent)
+            bottom[dive, 2] = start_asc / fs_a
 
-                # Time in seconds at the end of bottom phase
-                # (start of descent)
-                bottom[dive, 2] = start_asc / fs_a
+            # Depth in m at the end of the bottom phase
+            # (start of descent phase)
+            bottom[dive, 3] = depths[start_asc]
 
-                # Depth in m at the end of the bottom phase
-                # (start of descent phase)
-                bottom[dive, 3] = depths[start_asc]
-
-            # If acc signal does not match depth movement, remove dive
-            except IndexError:
-                print('Empty pitch array, likely all positive/negative.')
-                # remove invalid dive from summary table
-                bad_dives.append(dive)
-                continue
+        # If acc signal does not match depth movement, remove dive
+        except IndexError:
+            print('Empty pitch array, likely all positive/negative.')
+            # remove invalid dive from summary table
+            bad_dives.append(dive)
+            continue
 
     print('')
 
@@ -277,6 +273,7 @@ def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
 
 def get_dive_mask(depths, T, fs):
     '''Get boolean mask of values in depths that are dives'''
+    import numpy
 
     isdive = numpy.zeros(depths.size, dtype=bool)
     for i in range(T.shape[0]):
