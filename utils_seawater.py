@@ -1,3 +1,23 @@
+
+def estimate_seawater_density(DTS, D):
+    '''Estimate seawater density
+
+    From body condition script
+    '''
+    import utils_sewater
+
+    # Seawater density estimation
+    DPT = DTS[:, 0] # Pressure
+    TMP = DTS[:, 1] # Temperature
+    SL  = DTS[:, 2] # Salinity
+
+    SWdensity, depCTD = SWdensityFromCTD(DPT, TMP, SL, D)
+
+    Dsw = EstimateDsw(SWdensity, depCTD, depths)
+
+    return Dsw
+
+
 def EstimateDsw(SWdensity, depCTD, p):
     '''Estimate seawater density from CTD measurement
 
@@ -43,7 +63,7 @@ def SWdensityFromCTD(DPT, TMP, SL, D):
     if max(D[:, 6]) > max(DPT):
         new_depth2 = range(0, max(D[:, 6]))
         sali = numpy.hstack(sali, sali[-1] * numpy.ones((len(new_depth2)-len(new_depth))))
-        temp = numpy.hstack(temp, temp[-1] * numpy.ones((len(new_depth2)-len(new_depth)))
+        temp = numpy.hstack(temp, temp[-1] * numpy.ones((len(new_depth2)-len(new_depth))))
 
         dens = sw_dens0(sali, temp)
 
