@@ -1,3 +1,34 @@
+
+def merge_limits(axes, xlim=True, ylim=True):
+    '''Set maximum and minimum limits from list of axis objects to each axis
+
+    Args
+    ----
+    axes: iterable
+        list of `matplotlib.pyplot` axis objects whose limits should be modified
+    xlim: bool
+        Flag to set modification of x axis limits
+    ylim: bool
+        Flag to set modification of y axis limits
+    '''
+
+    # Compile lists of all x/y limits
+    xlims = list()
+    ylims = list()
+    for ax in axes:
+        [xlims.append(lim) for lim in ax.get_xlim()]
+        [ylims.append(lim) for lim in ax.get_ylim()]
+
+    # Iterate over axes objects and set limits
+    for ax in axes:
+        if xlim:
+            ax.set_xlim(min(xlims), max(xlims))
+        if ylim:
+            ax.set_ylim(min(ylims), max(ylims))
+
+    return None
+
+
 def plot_dives(dv0, dv1, p, dp, t_on, t_off):
     '''Plots depths and delta depths with dive start stop markers'''
     import matplotlib.pyplot as plt
@@ -42,7 +73,7 @@ def plot_dives(dv0, dv1, p, dp, t_on, t_off):
     return None
 
 
-def plot_noncontiguous(ax, data, ind, label=''):
+def plot_noncontiguous(ax, data, ind, color='black', label=''):
     '''Plot non-contiguous slice of data
 
     Args
@@ -73,7 +104,7 @@ def plot_noncontiguous(ax, data, ind, label=''):
 
         return ind_nan, data_nan
 
-    ax.plot(*slice_with_nans(data, ind), label=label)
+    ax.plot(*slice_with_nans(data, ind), color=color, label=label)
 
     return ax
 
@@ -134,29 +165,62 @@ def plot_welch_perdiogram(x, fs, nperseg):
     return None
 
 
-def plot_descent_ascent(A, DES, ASC):#, fs_a
-    '''Plot accel. for whole deployment, descents, and ascents'''
+def plot_depth_descent_ascent(depths, T, fs, phase):
+    '''Plot depth data for whole deployment, descents, and ascents
+    '''
+    import matplotlib.pyplot as plt
+    import numpy
+
+    import utils_dives
+
+    # Indices where depths are descents or ascents
+    # TODO if interpolating, can use DES and ASC from accelerometry
+    des_ind = numpy.where((phase > -1) | numpy.isnan(phase))[0]
+    asc_ind = numpy.where((phase <  1) | numpy.isnan(phase))[0]
+
+
+    fig, ((ax1, ax1, ax2)) = plt.subplots(3, 1)
+    plt.title('Dives, descents, and ascents')
+
+    ax1 = plot_noncontiguous(ax1, depths, des_ind, 'blue', 'descents')
+    ax1 = plot_noncontiguous(ax1, depths, des_ind, 'red', 'ascents')
+    ax1.legend(loc='upper right')
+
+    # Indices where depths are dives
+    dive_ind = numpy.where(utils_dives.get_dive_mask(depths, T, fs))[0]
+
+    ax2 = plot_noncontiguous(ax2, depths, dive_ind, 'blue', 'dives')
+    ax2 = plot_noncontiguous(ax2, depths, dive_ind, 'red', 'dives')
+    ax2.title.set_text('Whole z')
+    ax2.legend(loc='upper right')
+
+    merge_limits((ax1, ax2), xlim=True, ylim=True)
+
+    plt.show()
+
+    return None
+
+
+def plot_triaxial_descent_ascent(A, DES, ASC):#, fs_a
+    '''Plot triaxial accelerometer data for whole deployment, descents, and
+    ascents
+
+    Only x and z axes are ploted since these are associated with stroking
+    '''
     import matplotlib.pyplot as plt
 
     fig, ((ax1, ax4), (ax2, ax5), (ax3, ax6)) = plt.subplots(3, 2)
 
-    #ax1 = plot_power_spec(ax1, 
-    #ax2 = plot_power_spec(ax2, A[DES, :], fs_a, title='Descent')
-    #ax3 = plot_power_spec(ax3, A[ASC, :], fs_a, title='Ascent')
-
+    # Whole deployment
     ax1.plot(range(len(A[:,0])), A[:,0], label='x')
     ax1.title.set_text('Whole x')
 
     ax4.plot(range(len(A[:,2])), A[:,2], label='z')
     ax4.title.set_text('Whole z')
 
-    xlim_whole = (*(ax1.get_xlim()), *(ax4.get_xlim()))
-    ylim_whole = (*(ax1.get_ylim()), *(ax4.get_ylim()))
+    merge_limits((ax1, ax2), xlim=True, ylim=True)
 
-    for a in [ax1, ax2]:
-        a.set_xlim(min(xlim_whole), max(xlim_whole))
-        a.set_ylim(min(ylim_whole), max(ylim_whole))
-
+    # Descents and ascents
     ax2 = plot_noncontiguous(ax2, A[:,0], DES, label='x')
     ax2.title.set_text('Descent x')
 
@@ -169,14 +233,7 @@ def plot_descent_ascent(A, DES, ASC):#, fs_a
     ax6 = plot_noncontiguous(ax6, A[:,2], ASC, label='z')
     ax6.title.set_text('Ascent z')
 
-    xlim_desasc = (*(ax2.get_xlim()), *(ax5.get_xlim()),
-                   *(ax3.get_xlim()), *(ax6.get_xlim()))
-    ylim_desasc = (*(ax2.get_ylim()), *(ax5.get_ylim()),
-                   *(ax3.get_ylim()), *(ax6.get_ylim()))
-
-    for a in [ax2, ax5, ax3, ax6]:
-        a.set_xlim(min(xlim_desasc), max(xlim_desasc))
-        a.set_ylim(min(ylim_desasc), max(ylim_desasc))
+    merge_limits((ax2, ax3, ax5, ax6), xlim=True, ylim=True)
 
     plt.show()
 
@@ -208,6 +265,19 @@ def plot_pitch_roll(pitch, roll, pitch_lf, roll_lf):
 
     return None
 
+
+def plot_swim_speed(swim_speed, ind):
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots()
+
+    ax.plot(ind, swim_speed, 'g', label='speed')
+    ax.set_ylim(0, max(swim_speed))
+    ax.legend(loc='upper right')
+
+    plt.show()
+
+    return ax
 
 #def plot_cutoff_peak(f_x, S_x, f_x, S_z, peak_idx, idx_f, min_f):
 #    '''Plot cuttoff frequencies, axes 0 & 2'''
