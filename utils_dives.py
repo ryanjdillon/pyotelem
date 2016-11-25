@@ -182,25 +182,24 @@ def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
             dive_mask = dive_mask & depth_mask
 
         try:
-
             # Find first index after diving below min_dive_def
             # (pitch is positive)
             end_pitch_mask = numpy.rad2deg(pitch[dive_mask]) > 0
             end_pitch      = numpy.where(end_pitch_mask)[0][0]
-            end_des        = end_pitch + (T[dive, 0] * fs_a)
+            end_des        = round(end_pitch + (T[dive, 0] * fs_a))
 
             # Find last index before diving above min_dive_def
             # (pitch is negative)
             start_pitch_mask = numpy.rad2deg(pitch[dive_mask]) < 0
             start_pitch      = numpy.where(start_pitch_mask)[0][-1]
-            start_asc        = start_pitch + (T[dive, 0] * fs_a)
+            start_asc        = round(start_pitch + (T[dive, 0] * fs_a))
 
             if manual==False:
                 # selects the whole descent phase
-                des = list(range(int(fs_a * T[dive, 0]), int(end_des)))
+                des = list(range(round(fs_a * T[dive, 0]), end_des))
 
                 # selects the whole ascent phase
-                asc = list(range(int(start_asc), int(fs_a * T[dive, 1])))
+                asc = list(range(start_asc, round(fs_a * T[dive, 1])))
             elif manual==True:
                 # TODO implement plotting
                 import warnings
@@ -209,10 +208,10 @@ def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
                               'whole descent/ascent phase indicies')
 
                 # selects the whole descent phase
-                des = list(range(int(fs_a * T[dive, 0]), int(end_des)))
+                des = list(range(round(fs_a * T[dive, 0]), end_des))
 
                 # selects the whole ascent phase
-                asc = list(range(int(start_asc), int(fs_a * T[dive, 1])))
+                asc = list(range(start_asc, round(fs_a * T[dive, 1])))
 
                 # if you want to do it manually as some times there is a
                 # small ascent where pitch angle first goes to zero & last
@@ -277,6 +276,6 @@ def get_dive_mask(depths, T, fs):
 
     isdive = numpy.zeros(depths.size, dtype=bool)
     for i in range(T.shape[0]):
-        isdive[int(T[i, 0] * fs) : int(T[i, 1] * fs)] = True
+        isdive[round(T[i, 0] * fs) : round(T[i, 1] * fs)] = True
 
     return isdive
