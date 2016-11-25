@@ -169,8 +169,8 @@ def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
     for dive in range(len(T)):
         # get list of indices to select the whole dive
         # multiply by acc sampling rate to scale indices
-        idx0 = numpy.floor(fs_a * T[dive, 0])
-        idx1 = numpy.floor(fs_a * T[dive, 1])
+        idx0 = (fs_a * T[dive, 0]).round()
+        idx1 = (fs_a * T[dive, 1]).round()
         ind = numpy.arange(idx0, idx1, dtype=int)
 
         # Convert kk indices to boolean mask
@@ -186,20 +186,22 @@ def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
             # (pitch is positive)
             end_pitch_mask = numpy.rad2deg(pitch[dive_mask]) > 0
             end_pitch      = numpy.where(end_pitch_mask)[0][0]
-            end_des        = round(end_pitch + (T[dive, 0] * fs_a))
+            end_des        = (end_pitch + (T[dive, 0] * fs_a)).round()
 
             # Find last index before diving above min_dive_def
             # (pitch is negative)
             start_pitch_mask = numpy.rad2deg(pitch[dive_mask]) < 0
             start_pitch      = numpy.where(start_pitch_mask)[0][-1]
-            start_asc        = round(start_pitch + (T[dive, 0] * fs_a))
+            start_asc        = (start_pitch + (T[dive, 0] * fs_a)).round()
 
             if manual==False:
                 # selects the whole descent phase
-                des = list(range(round(fs_a * T[dive, 0]), end_des))
+                des = numpy.arange((fs_a * T[dive, 0]).round(), end_des,
+                                   dtype=int)
 
                 # selects the whole ascent phase
-                asc = list(range(start_asc, round(fs_a * T[dive, 1])))
+                asc = numpy.arange(start_asc, (fs_a * T[dive, 1]).round(),
+                                   dtype=int)
             elif manual==True:
                 # TODO implement plotting
                 import warnings
@@ -208,10 +210,12 @@ def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
                               'whole descent/ascent phase indicies')
 
                 # selects the whole descent phase
-                des = list(range(round(fs_a * T[dive, 0]), end_des))
+                des = numpy.arange((fs_a * T[dive, 0]).round(), end_des,
+                                   dtype=int)
 
                 # selects the whole ascent phase
-                asc = list(range(start_asc, round(fs_a * T[dive, 1])))
+                asc = numpy.arange(start_asc, (fs_a * T[dive, 1]).round(),
+                                   dtype=int)
 
                 # if you want to do it manually as some times there is a
                 # small ascent where pitch angle first goes to zero & last
@@ -233,8 +237,12 @@ def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
                 #     asc=round(x[2])/fs_a+T[dive,0]
 
             # Concatenate lists
-            DES += des
-            ASC += asc
+            if dive == 0:
+                DES = des
+                ASC = asc
+            else:
+                DES = numpy.hstack([DES, des])
+                ASC = numpy.hstack([ASC, asc])
 
             phase[ind[ind < end_des]] = -1
             phase[ind[(ind < start_asc) & (ind > end_des)]] = 0
