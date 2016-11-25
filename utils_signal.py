@@ -65,18 +65,14 @@ def inst_speed(depths, smoothpitch, fs, stroke_f, f, ind, thresh_deg):
 
     # apply a symmetric FIR low-pass filter to Aw and Mw with 0 group delay to
     # obtain the low-pass filtered acceleration signal Alf
-    new_speed = numpy.diff(depths[ind]) * fs
+    speed = numpy.diff(depths[ind]) * fs
+    speed_filtered, speed_filter = utils_signal.fir_nodelay(speed, n_f, Wn)
 
-    inst_speed = utils_signal.fir_nodelay(new_speed, n_f, Wn)
-    InstSpeed  = numpy.hstack((inst_speed, numpy.nan))
+    InstSpeed  = numpy.hstack((speed_filtered, numpy.nan))
 
     swim_speed = -InstSpeed / smoothpitch
     xa         = numpy.copy(smoothpitch)
     swim_speed[abs(numpy.rad2deg(xa)) < thresh_deg] = numpy.nan
-
-    # TODO
-    # Docstring states inst_speed & swim_speed returned
-    # [swim_speed] = inst_speed(depths, smoothpitch, fs, stroke_f, f, ind, thresh_deg)
 
     return swim_speed
 
@@ -564,7 +560,7 @@ def fir_nodelay(x, n, fp, qual=None):
     #y = y[n + n_offs - 1 + range(len(x)), :]
 
     # For FIR filter, use `1` for all denominator coefficients
-    y = scipy.signal.lfilter(b, numpy_ones(len(b)), x)
+    y = scipy.signal.lfilter(b, numpy.ones(len(b)), x)
 
     return y, b
 
