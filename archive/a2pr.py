@@ -16,10 +16,13 @@ def a2pr(A):
     '''
     import numpy
 
-    if min(cat(A.shape[0], A.shape[1])) == 1:
-        A = A.ravel().T
+    if min(A.shape) == 1:
+        #A = A.ravel().T
+        raise IndexError('Dimensions of array `A` passed to `a2pr()` '
+                         'incorrect')
 
-    v = numpy.sqrt(A**2 *  [1,1,1])
+    # TODO normalize? don't see how previous code computed a norm
+    v = numpy.sqrt(A**2)
 
     # compute pitch and roll
     p = numpy.arcsin(A[:, 0] / v)
