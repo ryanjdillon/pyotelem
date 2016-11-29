@@ -10,6 +10,7 @@ def calc_filter_dp(depths_m, cutoff, fs):
     # Calculate normalized cutoff freq with nyquist f
     dp_w = cutoff / nyq
 
+    # TODO butter IIR filter, change to FIR?
     depth_fs = numpy.hstack(([0], numpy.diff(depths_m))) * fs
     #b, a     = scipy.signal.butter(4, dp_w, btype='low')
     #dp       = scipy.signal.filtfilt(b, a, depth_fs)
@@ -136,6 +137,64 @@ def finddives(depths_m, fs, thresh=10, surface=1, findall=False):
     return T
 
 
+def create_dive_summary(T):
+    '''Create a numpy array with summary values of dives
+
+    Args
+    ----
+    T: numpy.ndarray
+      Dive table
+
+    Returns
+    -------
+    D: numpy.ndarray
+      table of dive summary files
+
+    Notes
+    -----
+    Implement as record array:
+    D = numpy.zeros((n_dives)), dtype=dtypes)
+
+    where:
+    dtype = numpy.dtype([('start_time', int),  # start in sec since tag on time
+                         ('end_time', int),    # end in sec since tag on time
+                         ('duration', int),    # dive duration in sec
+                         ('surface', int),     # post-dive surface duration in sec
+                         ('max_time', int),    # time of deepest point
+                         ('max_depth', float), # maximum dive depth of each dive
+                         ('dive_id', int),     # dive ID number
+                         ])
+    '''
+    import numpy
+
+    n_dives = len(T[:, 0])
+
+    D = numpy.zeros((n_dives, 7))
+
+    # start in sec since tag on time
+    D[:, 0] = T[:, 0]
+
+    # end in sec since tag on time
+    D[:, 1] = T[:, 1]
+
+    # dive duration in sec
+    D[:, 2] = T[:, 1] - T[:, 0]
+
+    # post-dive surface duration in sec
+    D[:, 3] = numpy.hstack((T[1:, 0] - T[0:-1, 1], [numpy.nan]))
+
+    # time of deepest point
+    D[:, 4] = T[:, 3]
+
+    # maximum dive depth of each dive
+    D[:, 5] = T[:, 2]
+
+    # dive ID number
+    D[:, 6] = numpy.arange(n_dives)
+
+    return D
+
+
 def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
     '''Return indices for descent and ascent periods of dives in T
 
@@ -161,38 +220,44 @@ def get_des_asc(depths, T, pitch, fs_a, min_dive_def=None, manual=False):
     # Index positions of bad dives to remove from T
     bad_dives = list()
 
-    # Get depths greater than `min_dive_def`
+    # If min_dive_def passed, get depths greater than `min_dive_def`
     if min_dive_def:
-        depth_mask = depths > (min_dive_def * .75)
+        # TODO 0.75 factor, pass as argument
+        depth_mask = depths < (min_dive_def * .75)
+    # Else include all depths in mask
+    else:
+        depth_mask = numpy.zeros(len(depths), dtype=bool)
 
     # Get start, end indexs and dive stats for each dive
     for dive in range(len(T)):
         # get list of indices to select the whole dive
         # multiply by acc sampling rate to scale indices
-        idx0 = (fs_a * T[dive, 0]).round()
-        idx1 = (fs_a * T[dive, 1]).round()
-        ind = numpy.arange(idx0, idx1, dtype=int)
+        idx_start = (fs_a * T[dive, 0]).round()
+        idx_end = (fs_a * T[dive, 1]).round()
+        ind = numpy.arange(idx_start, idx_end, dtype=int)
 
         # Convert kk indices to boolean mask
         dive_mask = numpy.zeros(depths.size, dtype=bool)
         dive_mask[ind] = True
 
-        # If passed add dive mask with dives where depth > min_dive_def
-        if min_dive_def:
-            dive_mask = dive_mask & depth_mask
+        # Omit depths less than `min_dive_def`
+        dive_mask[depth_mask] = False
 
+        # If passed add dive mask with dives where depth > min_dive_def
         try:
             # Find first index after diving below min_dive_def
             # (pitch is positive)
             end_pitch_mask = numpy.rad2deg(pitch[dive_mask]) > 0
-            end_pitch      = numpy.where(end_pitch_mask)[0][0]
-            end_des        = (end_pitch + (T[dive, 0] * fs_a)).round()
+
+            end_pitch = numpy.where(end_pitch_mask)[0][0]
+            end_des   = int((end_pitch + (T[dive, 0] * fs_a)).round())
 
             # Find last index before diving above min_dive_def
             # (pitch is negative)
             start_pitch_mask = numpy.rad2deg(pitch[dive_mask]) < 0
-            start_pitch      = numpy.where(start_pitch_mask)[0][-1]
-            start_asc        = (start_pitch + (T[dive, 0] * fs_a)).round()
+
+            start_pitch = numpy.where(start_pitch_mask)[0][-1]
+            start_asc   = int((start_pitch + (T[dive, 0] * fs_a)).round())
 
             if manual==False:
                 # selects the whole descent phase
@@ -284,6 +349,58 @@ def get_dive_mask(depths, T, fs):
 
     isdive = numpy.zeros(depths.size, dtype=bool)
     for i in range(T.shape[0]):
-        isdive[round(T[i, 0] * fs) : round(T[i, 1] * fs)] = True
+        idx_start = int(round(T[i, 0] * fs))
+        idx_end  = int(round(T[i, 1] * fs))
+        isdive[idx_start:idx_end] = True
 
     return isdive
+
+
+def select_last_dive(depths, pitch, pitch_lf, T, fs):
+    '''Get user selection of last dive to start index from'''
+    import copy
+    import matplotlib.pyplot as plt
+    import numpy
+
+    import utils
+    import utils_dives
+
+    isdive = utils_dives.get_dive_mask(depths, T, fs)
+
+    # dives
+    p_dive   = copy.deepcopy(depths)
+    p_dive[~isdive]  = numpy.nan
+
+    # not dives
+    p_nodive = copy.deepcopy(depths)
+    p_nodive[isdive] = numpy.nan
+
+    # Setup subplots
+    fig, (ax1, ax2) = plt.subplots(2,1)
+
+    # Dive plots
+    ax1.title.set_text('Click within the last dive you want to use')
+    ax1.plot(range(len(depths)), p_dive, 'g', label='dive')
+    ax1.plot(range(len(depths)), p_nodive, 'r', label='not dive')
+    ax1.set_ylim(min(depths), max(depths))
+    ax1.invert_yaxis()
+    ax1.legend(loc='lower right')
+
+    # Pitch plot
+    ax2.title.set_text('Pitch vs. Low-pass filtered pitch')
+    ax2.plot(range(len(pitch)), pitch, 'g', label='pitch')
+    ax2.plot(range(len(pitch_lf)), pitch_lf, 'r', label='pitch filtered')
+    ax2.legend(loc='lower right')
+
+    plt.show()
+
+    # Get user input for first index position of last dive to determine
+    x = utils.recursive_input('first index of last dive to use', int)
+
+    # TODO .m code took indices of whole dive, then first of those used
+    #nn = numpy.where(T[:, 0] < x[0]/fs)[0][-1]
+    nn = int(numpy.where(T[:, 0] < x/fs)[0][-1])
+
+    return nn
+
+
