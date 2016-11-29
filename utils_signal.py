@@ -7,6 +7,31 @@
 #    in freq bands defined by the wavelet transform.
 #     * see Haar wavelet SWT denoising
 
+def filter_accelerometer(A_g, fs_a, cutoff, order=5):
+    '''Calculate low and high filtered tri-axial accelerometer data'''
+    import numpy
+
+    import utils_signal
+
+    b_lo, a_lo, = utils_signal.butter_filter(cutoff, fs_a, order=order,
+                                             btype='low')
+    b_hi, a_hi, = utils_signal.butter_filter(cutoff, fs_a, order=order,
+                                             btype='high')
+
+    Ax_g_lf = utils_signal.butter_apply(b_lo, a_lo, A_g[:,0])
+    Ay_g_lf = utils_signal.butter_apply(b_lo, a_lo, A_g[:,1])
+    Az_g_lf = utils_signal.butter_apply(b_lo, a_lo, A_g[:,2])
+
+    Ax_g_hf = utils_signal.butter_apply(b_hi, a_hi, A_g[:,0])
+    Ay_g_hf = utils_signal.butter_apply(b_hi, a_hi, A_g[:,1])
+    Az_g_hf = utils_signal.butter_apply(b_hi, a_hi, A_g[:,2])
+
+    A_g_lf = numpy.vstack((Ax_g_lf, Ay_g_lf, Az_g_lf)).T
+    A_g_hf = numpy.vstack((Ax_g_lf, Ay_g_lf, Az_g_lf)).T
+
+    return A_g_lf, A_g_hf
+
+
 def inst_speed(depths, smoothpitch, fs, stroke_f, f, ind, thresh_deg):
     '''Estimate instantaneous swimming speed as depthrate
 
