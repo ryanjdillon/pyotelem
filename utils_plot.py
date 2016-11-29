@@ -279,6 +279,27 @@ def plot_swim_speed(swim_speed, ind):
 
     return ax
 
+
+def plot_depth_at_glides(depths, sgl_dur, pry, fs, t):
+    '''Plot depth at glides using pry'''
+    import matplotlib.pyplot as plt
+
+    import utils
+
+    t = numpy.arange(len(depths))/fs
+    #t = numpy.arange(0, len(pry[:,1])/fs)
+
+    gl_ind = utils.event_on(sgl_dur, t)
+    p_gl   = numpy.copy(depths)
+    p_gl[gl_ind==0] = numpy.nan
+
+    plt.plot(t * fs, p_gl, 'm', linewidth=3)
+
+    plt.show()
+
+    return None
+
+
 #def plot_cutoff_peak(f_x, S_x, f_x, S_z, peak_idx, idx_f, min_f):
 #    '''Plot cuttoff frequencies, axes 0 & 2'''
 #
