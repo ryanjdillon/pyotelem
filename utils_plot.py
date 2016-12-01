@@ -1,3 +1,15 @@
+import matplotlib.pyplot as plt
+import seaborn
+
+# Use specified style (e.g. 'ggplot')
+plt.style.use('seaborn-whitegrid')
+
+# Use specified color palette
+colors = seaborn.color_palette()
+
+# Global axis properties
+linewidth = 0.5
+
 
 def merge_limits(axes, xlim=True, ylim=True):
     '''Set maximum and minimum limits from list of axis objects to each axis
@@ -29,9 +41,26 @@ def merge_limits(axes, xlim=True, ylim=True):
     return None
 
 
+def plot_lf_hf(x, xlf, xhf, title=''):
+    '''Plot original signal, low-pass filtered, and high-pass filtered signals
+    '''
+    fig, (ax1, ax2, ax3) = plt.subplots(3,1, sharex=True, sharey=True)
+
+    plt.title(title)
+    ax1.plot(range(len(x)), x, color=colors[0], linewidth=linewidth,
+             label='original')
+    ax2.plot(range(len(xlf)), xlf, color=colors[1], linewidth=linewidth,
+             label='low-pass')
+    ax3.plot(range(len(xhf)), xhf, color=colors[2], linewidth=linewidth,
+             label='high-pass')
+
+    plt.show()
+
+    return None
+
+
 def plot_dives(dv0, dv1, p, dp, t_on, t_off):
     '''Plots depths and delta depths with dive start stop markers'''
-    import matplotlib.pyplot as plt
 
     fig = plt.figure()
 
@@ -54,13 +83,13 @@ def plot_dives(dv0, dv1, p, dp, t_on, t_off):
     start = t_on[dv0]
     stop  = t_off[dv1]
     ax1.plot(range(len(p[start:stop])), p[start:stop])
-    ax1.scatter(x0, y0_p, color='red', label='start')
-    ax1.scatter(x1, y1_p, color='blue', label='stop')
+    ax1.scatter(x0, y0_p, label='start')
+    ax1.scatter(x1, y1_p, label='stop')
     ax1.set_ylabel('depth (m)')
 
     ax2.plot(range(len(dp[start:stop])), dp[start:stop])
-    ax2.scatter(x0, y0_dp, color='red', label='start')
-    ax2.scatter(x1, y1_dp, color='blue', label='stop')
+    ax2.scatter(x0, y0_dp, label='start')
+    ax2.scatter(x1, y1_dp, label='stop')
     ax2.set_ylabel('depth (dm/t)')
     ax2.set_xlabel('sample')
 
@@ -73,7 +102,43 @@ def plot_dives(dv0, dv1, p, dp, t_on, t_off):
     return None
 
 
-def plot_noncontiguous(ax, data, ind, color='black', label=''):
+def plot_dives_pitch(depths, dive_mask, pitch, pitch_lf):
+    import copy
+    import numpy
+
+    # dives
+    p_dive   = copy.deepcopy(depths)
+    p_dive[~dive_mask]  = numpy.nan
+
+    # not dives
+    p_nodive = copy.deepcopy(depths)
+    p_nodive[dive_mask] = numpy.nan
+
+    fig, (ax1, ax2) = plt.subplots(2,1, sharex=True)
+
+    ax1.title.set_text('Dives')
+    ax1.plot(range(len(depths)), p_dive, color=colors[0], linewidth=linewidth,
+            label='dive')
+    ax1.plot(range(len(depths)), p_nodive, color=colors[1],
+            linewidth=linewidth, label='not dive')
+    ax1.set_ylim(min(depths), max(depths))
+    ax1.invert_yaxis()
+    ax1.legend(loc='lower right')
+
+
+    ax2.title.set_text('Pitch vs. Low-pass filtered pitch')
+    ax2.plot(range(len(pitch)), pitch, color=colors[2], linewidth=linewidth,
+            label='pitch')
+    ax2.plot(range(len(pitch_lf)), pitch_lf, color=colors[3],
+            linewidth=linewidth, label='pitch filtered')
+    ax2.legend(loc='lower right')
+
+    plt.show()
+
+    return None
+
+
+def plot_noncontiguous(ax, data, ind, color=colors[0], label=''):
     '''Plot non-contiguous slice of data
 
     Args
@@ -104,33 +169,39 @@ def plot_noncontiguous(ax, data, ind, color='black', label=''):
 
         return ind_nan, data_nan
 
-    ax.plot(*slice_with_nans(data, ind), color=color, label=label)
+    ax.plot(*slice_with_nans(data, ind), color=color, linewidth=linewidth,
+            label=label)
 
     return ax
 
 
-def plot_welch(f, S):
-    import matplotlib.pyplot as plt
+def plot_welch_peaks(f, S, peak_loc=None, title=''):
+    '''Plot welch PSD with peaks as scatter points'''
+    plt.plot(f, S, linewidth=linewidth)
+    plt.title(title)
+    plt.xlabel('Fequency (Hz)')
+    plt.ylabel('"Power" (g**2 Hz**−1)')
 
-    plt.plot(f,S)
+    if peak_loc != None:
+        plt.scatter(f[peak_loc], S[peak_loc], label='peaks')
+        plt.legend(loc='upper right')
+
     plt.show()
 
     return None
 
 
 def plot_fft(f, S, dt):
-    import matplotlib.pyplot as plt
     import numpy
 
     xf = numpy.linspace(0.0, 1/(2.0*dt), N/2)
-    plt.plot(xf, 2.0/N * numpy.abs(S[:N//2]))
+    plt.plot(xf, 2.0/N * numpy.abs(S[:N//2]), linewidth=linewidth)
     plt.show()
 
     return None
 
 
 def plot_welch_perdiogram(x, fs, nperseg):
-    import matplotlib.pyplot as plt
     import scipy.signal
     import numpy
 
@@ -165,10 +236,47 @@ def plot_welch_perdiogram(x, fs, nperseg):
     return None
 
 
+def plot_data_filter(data, data_f, b, a, cutoff, fs):
+    '''Plot frequency response and filter overlay for butter filtered data
+
+    http://stackoverflow.com/a/25192640/943773
+    '''
+    import matplotlib.pyplot as plt
+    import numpy
+    import scipy.signal
+
+    n = len(data)
+    T = n/fs
+    t = numpy.linspace(0, T, n, endpoint=False)
+
+    # Calculate frequency response
+    w, h = scipy.signal.freqz(b, a, worN=8000)
+
+    # Plot the frequency response.
+    fig, (ax1, ax2) = plt.subplots(2,1)
+
+    ax1.title.set_text('Lowpass Filter Frequency Response')
+    ax1.plot(0.5*fs * w/numpy.pi, numpy.abs(h), 'b')
+    ax1.plot(cutoff, 0.5*numpy.sqrt(2), 'ko')
+    ax1.axvline(cutoff, color='k')
+    ax1.set_xlim(0, 0.5*fs)
+    ax1.set_xlabel('Frequency [Hz]')
+    ax2.legend()
+
+    # Demonstrate the use of the filter.
+    ax2.plot(t, data, linewidth=linewidth, label='data')
+    ax2.plot(t, data_f, linewidth=linewidth, label='filtered data')
+    ax2.set_xlabel('Time [sec]')
+    ax2.legend()
+
+    plt.show()
+
+    return None
+
+
 def plot_depth_descent_ascent(depths, T, fs, phase):
     '''Plot depth data for whole deployment, descents, and ascents
     '''
-    import matplotlib.pyplot as plt
     import numpy
 
     import utils_dives
@@ -177,21 +285,17 @@ def plot_depth_descent_ascent(depths, T, fs, phase):
     # TODO if interpolating, can use DES and ASC from accelerometry
     des_ind = numpy.where((phase > -1) | numpy.isnan(phase))[0]
     asc_ind = numpy.where((phase <  1) | numpy.isnan(phase))[0]
-
-
-    fig, ((ax1, ax1, ax2)) = plt.subplots(3, 1)
-    plt.title('Dives, descents, and ascents')
-
-    ax1 = plot_noncontiguous(ax1, depths, des_ind, 'blue', 'descents')
-    ax1 = plot_noncontiguous(ax1, depths, des_ind, 'red', 'ascents')
-    ax1.legend(loc='upper right')
-
-    # Indices where depths are dives
     dive_ind = numpy.where(utils_dives.get_dive_mask(depths, T, fs))[0]
 
-    ax2 = plot_noncontiguous(ax2, depths, dive_ind, 'blue', 'dives')
-    ax2 = plot_noncontiguous(ax2, depths, dive_ind, 'red', 'dives')
-    ax2.title.set_text('Whole z')
+    fig, ((ax1, ax2)) = plt.subplots(2, 1, sharex=True, sharey=True)
+
+    ax1.title.set_text('Dives')
+    ax1 = plot_noncontiguous(ax1, depths, dive_ind, colors[0], 'dives')
+    ax1.legend(loc='upper right')
+
+    ax2.title.set_text('Descents and Ascents')
+    ax2 = plot_noncontiguous(ax2, depths, des_ind, colors[1], 'descents')
+    ax2 = plot_noncontiguous(ax2, depths, asc_ind, colors[2], 'ascents')
     ax2.legend(loc='upper right')
 
     merge_limits((ax1, ax2), xlim=True, ylim=True)
@@ -207,33 +311,39 @@ def plot_triaxial_descent_ascent(A, DES, ASC):#, fs_a
 
     Only x and z axes are ploted since these are associated with stroking
     '''
-    import matplotlib.pyplot as plt
 
-    fig, ((ax1, ax4), (ax2, ax5), (ax3, ax6)) = plt.subplots(3, 2)
+    fig, ((ax1, ax3), (ax2, ax4)) = plt.subplots(2, 2, sharex=True,
+                                                 sharey=True)
 
-    # Whole deployment
-    ax1.plot(range(len(A[:,0])), A[:,0], label='x')
+    # x - Whole deployment
+    ax1.plot(range(len(A[:,0])), A[:,0], color=colors[0], linewidth=linewidth,
+            label='x')
     ax1.title.set_text('Whole x')
 
-    ax4.plot(range(len(A[:,2])), A[:,2], label='z')
-    ax4.title.set_text('Whole z')
+    # x - Descents
+    ax2 = plot_noncontiguous(ax2, A[:,0], DES, color=colors[1], label='descents')
 
-    merge_limits((ax1, ax2), xlim=True, ylim=True)
+    # x - Ascents
+    ax2 = plot_noncontiguous(ax2, A[:,0], ASC, color=colors[2], label='ascents')
 
-    # Descents and ascents
-    ax2 = plot_noncontiguous(ax2, A[:,0], DES, label='x')
-    ax2.title.set_text('Descent x')
+    ax2.title.set_text('Descents & Ascents x')
+    ax2.legend(loc='upper right')
 
-    ax5 = plot_noncontiguous(ax5, A[:,2], DES, label='z')
-    ax5.title.set_text('Descent z')
+    # z - Whole deployment
+    ax3.plot(range(len(A[:,2])), A[:,2], color=colors[0], linewidth=linewidth,
+            label='z')
+    ax3.title.set_text('Whole z')
 
-    ax3 = plot_noncontiguous(ax3, A[:,0], ASC, label='x')
-    ax3.title.set_text('Ascent x')
+    # z - Descents
+    ax4 = plot_noncontiguous(ax4, A[:,2], DES, color=colors[1], label='descents')
 
-    ax6 = plot_noncontiguous(ax6, A[:,2], ASC, label='z')
-    ax6.title.set_text('Ascent z')
+    # z - Ascents
+    ax4 = plot_noncontiguous(ax4, A[:,2], ASC, color=colors[2], label='ascents')
 
-    merge_limits((ax2, ax3, ax5, ax6), xlim=True, ylim=True)
+    ax4.title.set_text('Descents & Ascents z')
+    ax4.legend(loc='upper right')
+
+    merge_limits((ax1, ax2, ax3, ax4), xlim=True, ylim=True)
 
     plt.show()
 
@@ -241,19 +351,22 @@ def plot_triaxial_descent_ascent(A, DES, ASC):#, fs_a
 
 
 def plot_pitch_roll(pitch, roll, pitch_lf, roll_lf):
-    import matplotlib.pyplot as plt
     import numpy
 
     fig, (ax1, ax2) = plt.subplots(2, 1, sharex='col')
 
     rad2deg = lambda x: x*180/numpy.pi
 
-    ax1.plot(range(len(pitch)), rad2deg(pitch), label='original')
-    ax1.plot(range(len(pitch_lf)), rad2deg(pitch_lf), label='filtered')
+    ax1.plot(range(len(pitch)), rad2deg(pitch), color=colors[0],
+            linewidth=linewidth, label='original')
+    ax1.plot(range(len(pitch_lf)), rad2deg(pitch_lf), color=colors[1],
+            linewidth=linewidth, label='filtered')
     ax1.title.set_text('Pitch')
 
-    ax2.plot(range(len(roll)), rad2deg(roll), label='original')
-    ax2.plot(range(len(roll_lf)), rad2deg(roll_lf), label='filtered')
+    ax2.plot(range(len(roll)), rad2deg(roll), color=colors[2],
+            linewidth=linewidth, label='original')
+    ax2.plot(range(len(roll_lf)), rad2deg(roll_lf), color=colors[3],
+            linewidth=linewidth, label='filtered')
     ax2.title.set_text('Roll')
 
     plt.ylabel('Degrees')
@@ -267,11 +380,10 @@ def plot_pitch_roll(pitch, roll, pitch_lf, roll_lf):
 
 
 def plot_swim_speed(swim_speed, ind):
-    import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots()
 
-    ax.plot(ind, swim_speed, 'g', label='speed')
+    ax.plot(ind, swim_speed, linewidth=linewidth, label='speed')
     ax.set_ylim(0, max(swim_speed))
     ax.legend(loc='upper right')
 
@@ -282,7 +394,6 @@ def plot_swim_speed(swim_speed, ind):
 
 def plot_depth_at_glides(depths, sgl_dur, pry, fs, t):
     '''Plot depth at glides using pry'''
-    import matplotlib.pyplot as plt
 
     import utils
 
@@ -293,7 +404,7 @@ def plot_depth_at_glides(depths, sgl_dur, pry, fs, t):
     p_gl   = numpy.copy(depths)
     p_gl[gl_ind==0] = numpy.nan
 
-    plt.plot(t * fs, p_gl, 'm', linewidth=3)
+    plt.plot(t * fs, p_gl, color=colors[0], linewidth=linewidth)
 
     plt.show()
 
