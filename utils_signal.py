@@ -8,28 +8,44 @@
 #     * see Haar wavelet SWT denoising
 
 def filter_accelerometer(A_g, fs_a, cutoff, order=5):
-    '''Calculate low and high filtered tri-axial accelerometer data'''
+    '''Calculate low and high filtered tri-axial accelerometer data
+
+    Args
+    ----
+    A_g: numpy.ndarray, shape (n,3)
+        accelerometry signal calibrated to gravity (g)
+    fs_a: float
+        sampling rate of accelerometer sensor
+    cutoff: float
+        cutoff frequency for filter (Hz, not normalized, i.e. Wn)
+    order: int
+        order of filters to create
+
+    Returns
+    -------
+    A_g_lf: numpy.ndarray, shape (n,3)
+        low-pass filtered accelerometry signal
+    A_g_hf: numpy.ndarray, shape (n,3)
+        high-pass filtered accelerometry signal
+    '''
+    from collections import OrderedDict
     import numpy
 
-    import utils_signal
+    # Create dict of btypes and associated arrays to fill with filtered data
+    data_filt = OrderedDict((('low', numpy.zeros_like(A_g)),
+                             ('high', numpy.zeros_like(A_g))))
 
-    b_lo, a_lo, = utils_signal.butter_filter(cutoff, fs_a, order=order,
-                                             btype='low')
-    b_hi, a_hi, = utils_signal.butter_filter(cutoff, fs_a, order=order,
-                                             btype='high')
+    # Create filter of `btype`
+    for btype, data in data_filt.items():
+        b, a, = butter_filter(cutoff, fs_a, order=order, btype=btype)
+        # Apply on each axis in axis dims
+        for i in range(A_g.shape[1]):
+            data[:,i] = butter_apply(b, a, A_g[:,i])
+        # Garbage collect filter, just in case
+        del b, a
 
-    Ax_g_lf = utils_signal.butter_apply(b_lo, a_lo, A_g[:,0])
-    Ay_g_lf = utils_signal.butter_apply(b_lo, a_lo, A_g[:,1])
-    Az_g_lf = utils_signal.butter_apply(b_lo, a_lo, A_g[:,2])
-
-    Ax_g_hf = utils_signal.butter_apply(b_hi, a_hi, A_g[:,0])
-    Ay_g_hf = utils_signal.butter_apply(b_hi, a_hi, A_g[:,1])
-    Az_g_hf = utils_signal.butter_apply(b_hi, a_hi, A_g[:,2])
-
-    A_g_lf = numpy.vstack((Ax_g_lf, Ay_g_lf, Az_g_lf)).T
-    A_g_hf = numpy.vstack((Ax_g_lf, Ay_g_lf, Az_g_lf)).T
-
-    return A_g_lf, A_g_hf
+    # Return data arrays in `data_filt`, ordered as entered above
+    return tuple(a for a in data_filt.values())
 
 
 def inst_speed(depths, smoothpitch, fs, stroke_f, f, ind, thresh_deg):
@@ -273,7 +289,7 @@ def butter_filter(cutoff, fs, order=5, btype='low'):
 
     nyq = 0.5 * fs
     normal_cutoff = cutoff / nyq
-    b, a = scipy.signal.butter(order, normal_cutoff, btype='high', analog=False)
+    b, a = scipy.signal.butter(order, normal_cutoff, btype=btype, analog=False)
 
     return b, a
 
@@ -286,48 +302,6 @@ def butter_apply(b, a, data, method='gust'):
     import scipy.signal
     #y = lfilter(b, a, data)
     return scipy.signal.filtfilt(b, a, data, method='gust')
-
-
-def plot_data_filter(data, data_f, b, a, cutoff, fs):
-    '''Plot frequency response and filter overlay for butter filtered data
-
-    http://stackoverflow.com/a/25192640/943773
-    '''
-    import matplotlib.pyplot as plt
-    import numpy
-    import scipy.signal
-
-    n = len(data)
-    T = n/fs
-    t = numpy.linspace(0, T, n, endpoint=False)
-
-    # Calculate frequency response
-    w, h = scipy.signal.freqz(b, a, worN=8000)
-
-    # Plot the frequency response.
-    plt.subplot(2, 1, 1)
-    plt.plot(0.5*fs * w/numpy.pi, numpy.abs(h), 'b')
-    plt.plot(cutoff, 0.5*numpy.sqrt(2), 'ko')
-    plt.axvline(cutoff, color='k')
-    plt.xlim(0, 0.5*fs)
-
-    plt.title("Lowpass Filter Frequency Response")
-    plt.xlabel('Frequency [Hz]')
-    plt.grid()
-
-    # Demonstrate the use of the filter.
-    plt.subplot(2, 1, 2)
-    plt.plot(t, data, 'b-', label='data')
-    plt.plot(t, data_f, 'g-', linewidth=2, label='filtered data')
-
-    plt.xlabel('Time [sec]')
-    plt.grid()
-
-    plt.legend()
-    plt.subplots_adjust(hspace=0.35)
-    plt.show()
-
-    return None
 
 
 def __test_data():
@@ -592,6 +566,7 @@ def fir_nodelay(x, n, fp, qual=None):
 
 def __test_butter_filter(data, fs):
     '''Test butter filters'''
+    import utils_plot
 
     # Filter requirements.
     order = 6
@@ -602,7 +577,8 @@ def __test_butter_filter(data, fs):
 
     # Filter the data, and plot both the original and filtered signals.
     data_f = butter_apply(b, a, data)
-    plot_data_filter(data, data_f, b, a, cutoff, fs)
+
+    utils_plot.plot_data_filter(data, data_f, b, a, cutoff, fs)
 
     return None
 
