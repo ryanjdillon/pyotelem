@@ -20,6 +20,47 @@ def calc_filter_dp(depths_m, cutoff, fs):
     return dp
 
 
+def finddives2(depths, min_dive_thresh=10):
+    import numpy
+
+    import utils
+
+    condition = depths > min_dive_thresh
+    ind_start, ind_end = utils.contiguous_regions(condition)
+
+    dive_endpoints = numpy.vstack([ind_start, ind_end]).T
+
+    dive_mask = numpy.zeros(len(depths), dtype=bool)
+    for dive in range(len(dive_endpoints)):
+        dive_mask[dive_endpoints[dive,0]:dive_endpoints[dive,1]] = True
+
+    return dive_endpoints, dive_mask
+
+
+def get_des_asc2(depths, dive_mask, pitch):
+    import numpy
+    import utils_signal
+
+    asc = numpy.zeros(len(depths), dtype=bool)
+    des = numpy.zeros(len(depths), dtype=bool)
+
+    # TODO and deg threshold, i.e. > 30
+    #asc[dive_mask] = pitch[dive_mask] > 0
+    #des[dive_mask] = pitch[dive_mask] < 0
+
+    b, a = utils_signal.butter_filter(0.15, 16, 5, 'low')
+    dfilt = utils_signal.butter_apply(b, a, depths)
+
+    dp = numpy.hstack([numpy.diff(dfilt), 0])
+
+    asc[dive_mask] = dp[dive_mask] > 0
+    des[dive_mask] = dp[dive_mask] < 0
+
+    return des, asc
+
+
+
+
 def finddives(depths_m, fs, thresh=10, surface=1, findall=False):
     '''Find time cues for the edges of dives.
 
@@ -347,52 +388,31 @@ def get_dive_mask(depths, T, fs):
     '''Get boolean mask of values in depths that are dives'''
     import numpy
 
-    isdive = numpy.zeros(depths.size, dtype=bool)
+    dive_mask = numpy.zeros(depths.size, dtype=bool)
     for i in range(T.shape[0]):
         idx_start = int(round(T[i, 0] * fs))
         idx_end  = int(round(T[i, 1] * fs))
-        isdive[idx_start:idx_end] = True
+        dive_mask[idx_start:idx_end] = True
 
-    return isdive
+    return dive_mask
 
 
 def select_last_dive(depths, pitch, pitch_lf, T, fs):
-    '''Get user selection of last dive to start index from'''
+    '''Get user selection of last dive to start index from
+
+    `isdive` renamed `dive_mask`
+    '''
     import copy
-    import matplotlib.pyplot as plt
     import numpy
 
     import utils
     import utils_dives
+    import utils_plot
 
-    isdive = utils_dives.get_dive_mask(depths, T, fs)
-
-    # dives
-    p_dive   = copy.deepcopy(depths)
-    p_dive[~isdive]  = numpy.nan
-
-    # not dives
-    p_nodive = copy.deepcopy(depths)
-    p_nodive[isdive] = numpy.nan
+    dive_mask = utils_dives.get_dive_mask(depths, T, fs)
 
     # Setup subplots
-    fig, (ax1, ax2) = plt.subplots(2,1)
-
-    # Dive plots
-    ax1.title.set_text('Click within the last dive you want to use')
-    ax1.plot(range(len(depths)), p_dive, 'g', label='dive')
-    ax1.plot(range(len(depths)), p_nodive, 'r', label='not dive')
-    ax1.set_ylim(min(depths), max(depths))
-    ax1.invert_yaxis()
-    ax1.legend(loc='lower right')
-
-    # Pitch plot
-    ax2.title.set_text('Pitch vs. Low-pass filtered pitch')
-    ax2.plot(range(len(pitch)), pitch, 'g', label='pitch')
-    ax2.plot(range(len(pitch_lf)), pitch_lf, 'r', label='pitch filtered')
-    ax2.legend(loc='lower right')
-
-    plt.show()
+    utils_plot.plot_dives_pitch(depths, dive_mask, pitch, pitch_lf)
 
     # Get user input for first index position of last dive to determine
     x = utils.recursive_input('first index of last dive to use', int)
@@ -402,5 +422,3 @@ def select_last_dive(depths, pitch, pitch_lf, T, fs):
     nn = int(numpy.where(T[:, 0] < x/fs)[0][-1])
 
     return nn
-
-
