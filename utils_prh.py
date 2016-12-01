@@ -45,3 +45,21 @@ def yaw(x,y,z):
     import numpy
     #return numpy.arctan(numpy.sqrt(x**2+y**2)/z)
     return numpy.arctan2(x,y)
+
+
+def absdeg(deg):
+    '''Change from signed degrees to 0-180 or 0-360 ranges
+
+    e.g. An array with values -180:180 becomes 0:360
+    e.g. An array with values -90:90 becomes 0:180
+    '''
+    import numpy
+
+    d = numpy.copy(deg)
+
+    if numpy.max(numpy.abs(deg)) > 90.0:
+        d[deg < 0] = 360 + deg[deg < 0]
+    else:
+        d[deg < 0] = 180 + deg[deg < 0]
+
+    return d
