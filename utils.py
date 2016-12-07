@@ -123,12 +123,15 @@ def contiguous_regions(condition):
 
     Args
     ----
-    condition
+    condition: numpy.ndarray, dtype bool
+        boolean mask array, but can pass the condition itself (e.g. x > 5)
 
     Returns
     -------
-    an array with the start indices of the region
-    an array with the stop indices of the region
+    start: numpy.ndarray, dtype int
+        array with the start indices for each contiguous region
+    stop: numpy.ndarray, dtype int
+        array with the stop indices for each contiguous region
 
     http://stackoverflow.com/a/4495197/943773
     '''
@@ -163,6 +166,20 @@ def contiguous_regions(condition):
     stop = stop[good_vals]
 
     return start, stop
+
+
+def rm_regions(a, b, a_start_ind, a_stop_ind):
+    '''Remove additional contiguous regions in `a` that occur before a
+    complimentary region in `b` has occured'''
+    import numpy
+
+    for i in range(len(a_stop_ind)):
+        next_a_start = numpy.argmax(a[a_stop_ind[i]:])
+        next_b_start = numpy.argmax(b[a_stop_ind[i]:])
+        if  next_b_start > next_a_start:
+            a[a_start_ind[i]:a_stop_ind[i]] = False
+
+        return a
 
 
 def recursive_input(input_label, type_class):
