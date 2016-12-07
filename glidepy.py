@@ -2,12 +2,12 @@
 '''
 Body density estimation. Japan workshop May 2016
 
-Python translation: Ryan J. Dillon
-Matlab Author:      Lucia Martina Martin Lopez lmml2@st-andrews.ac.uk
+Python implementation:  Ryan J. Dillon
+Original Matlab Author: Lucia Martina Martin Lopez
 
 Attributes
 ----------
-T: numpy.ndarray, shape (n, 6)
+dive_ind: numpy.ndarray, shape (n, 6)
     start_idx
     end_idx
     max_depth
@@ -21,8 +21,8 @@ D: numpy.ndarray, shape (n, 7)
     max_depth(s)
     max_depth(m)
     ID(n)
-DES: numpy.ndarray, 1D array
-ASC: numpy.ndarray, 1D array
+des: numpy.ndarray, 1D array
+asc: numpy.ndarray, 1D array
 phase:
 bottom:
 cutoff:
@@ -45,7 +45,7 @@ pitch_lf:
 roll_lf:
 heading_lf:
 nn:
-    index position in T of last dive to use for analysis
+    index position in dive_ind of last dive to use for analysis
 swim_speed:
 DSP:
 Dsw:
@@ -74,7 +74,7 @@ NOTE variable name changes
 `SwimSp`  renamed `swim_speed`
 `Glide`   renamed `glide`
 `G_ratio` renamed `g_ratio`
-`SGtype`  renamed `sgl_type`
+`SGtype`  renamed `gl_mask`
 
 '''
 import click
@@ -83,24 +83,22 @@ import os
 # TODO dump table output as .npy to experiment directory
 #    * out_path param
 # TODO save dive/nodive mask as .npy
-# TODO pass `f` with `stroke_f` for calculation of `cutoff` for all signal
-# proesssing routines
-# TODO check order of filters
-# TODO check pitch, roll, heading
 # TODO sort out normalization and glide stats: get_stroke_freq()>automatic_freq()
+
 # TODO finish implementation of `auto_select` in get_stroke_freq()
+
 # TODO update dtag library, import from there instead of utils where applicable
-# TODO rename utils_* modules
+
 # TODO rounding of index number should have thought out standard
 #      http://stackoverflow.com/a/38228131/943773
-# TODO make duration test a test routine? 8 Make 5sec sub-glides
 # TODO account for Propeller/Speed data, Salinity (DTS)?
 
+# TODO choose working indices, save to config
 
 
 @click.command(help='Calculate dive statistics for body condition predictions')
 
-@click.option('--data-root-path', prompt=True,
+@click.option('--data-root', prompt=True,
               default=lambda: os.environ.get('LLEO_DATA_ROOT',''),
               help='Parent directory with child directories for acceleration data files')
 @click.option('--data-path', prompt=True,
@@ -109,7 +107,7 @@ import os
 @click.option('--cal-path', prompt=True,
               default=lambda: os.environ.get('LLEO_CAL_PATH',''),
               help='Child directory with calibration YAML to be used')
-@click.option('--analysis-root-path', prompt=True,
+@click.option('--analysis-root', prompt=True,
               default=lambda: os.environ.get('LLEO_ANALYSIS_ROOT',''),
               help='Parent directory with child directories for analysis output')
 @click.option('--config-path', prompt=True,
@@ -118,32 +116,49 @@ import os
 @click.option('--debug', default=True, type=bool, help='Return on debug output')
 
 
-def run_lleo_glide_analysis(data_root_path, data_path, cal_path,
-        analysis_root_path, config_path, debug=False):
+def make_paths():
+    import os
+
+    data_root = os.environ.get('LLEO_DATA_ROOT','')
+    data_path = os.environ.get('LLEO_DATA_PATH','')
+    cal_path = os.environ.get('LLEO_CAL_PATH','')
+    analysis_root = os.environ.get('LLEO_ANALYSIS_ROOT','')
+    config_path = os.environ.get('LLEO_CONF_PATH','')
+
+    data_path = os.path.join(data_root, data_path)
+    cal_path = os.path.join(data_root, cal_path)
+    config_path = os.path.join(analysis_root, config_path)
+    out_path = os.path.join(analysis_root, data_path)
+
+    return data_path, cal_path, out_path, conf_path
+
+
+def run_lleo_glide_analysis(data_root, data_path, cal_path,
+        analysis_root, config_path, debug=False):
     '''Run glide analysis with little leonarda data'''
     import os
 
-    config_path = os.path.join(analysis_root_path, config_path)
-    out_path    = os.path.join(analysis_root_path, data_path)
+    config_path = os.path.join(analysis_root, config_path)
+    out_path    = os.path.join(analysis_root, data_path)
 
     # `load_lleo` linearly interpolated sensors to accelerometer
-    A_g, depths, temperature, dt_a, fs_a = load_lleo(data_root_path, data_path,
+    A_g, depths, temperature, dt_a, fs_a = load_lleo(data_root, data_path,
                                                      cal_path, depth_thresh=2)
 
     glide, gl_ratio = glide_analysis(config_path, out_path, A_g, fs_a, depths,
                                      temperature, Mw=None,
                                      save=True, debug=False)
 
-    return None
+    return glide, gl_ratio
 
 
 def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
-        Mw=None, save=True, debug=False):
+        Mw=None, save=True, debug=False, show=True):
     '''Calculate body conditions summary statistics
 
     Args
     ----
-    data_root_path: str
+    data_root: str
         path containing experiment data directories
     data_path: str
         data directory name
@@ -158,19 +173,20 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
     '''
     import numpy
 
+    import logger
     import utils
     import utils_dives
     import utils_glides
     import utils_plot
     import utils_prh
     import utils_signal
-    import logger
+    import utils_seawater
 
     # Make out path if it does not exist
     if not os.path.isdir(out_path):
         os.makedirs(out_path)
 
-    log = logger.Log(out_path, printon=True, writeon=True)
+    log = logger.Log(out_path, term_on=True, write_on=True)
     log.new_entry('Start body condition analysis')
 
     # 1 Analysis configuration and data
@@ -189,29 +205,30 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
     # 2 Define dives
     #--------------------------------------------------------------------------
     log.new_entry('Define dives')
-    T = utils_dives.finddives(depths, fs_a, cfg['min_dive_thresh'], surface=1,
-                              findall=True)
+    #dive_ind = utils_dives.finddives(depths, fs_a, cfg['min_dive_thresh'], surface=1,
+    #                          findall=True)
+    dive_ind, dive_mask = utils_dives.finddives2(depths, cfg['min_dive_thresh'])
 
     # make a summary table describing the characteristics of each dive.
     log.new_entry('Create dive summary table')
-    D = utils_dives.create_dive_summary(T)
+    D = utils_dives.create_dive_summary(dive_ind)
 
 
     # 3.1 Quick separation of descent and ascent phases
     #--------------------------------------------------------------------------
     # Get list of dives indices & direction, descents/ascents, phase/bottom indices
     log.new_entry('Get indices of descents, ascents, phase and bottom')
-    T, DES, ASC, phase, bottom = utils_dives.get_des_asc(depths, T, pitch, fs_a)
+    des, asc = utils_dives.get_des_asc2(depths, dive_mask, pitch,
+                                        cfg['cutoff'], fs_a, order=5)
 
     # plot all descents and all ascent phases
-    utils_plot.plot_triaxial_descent_ascent(A_g, DES, ASC)
+    utils_plot.plot_triaxial_descent_ascent(A_g, des, asc)
 
 
     # 3.2.1-2 Select periods of analysis
     #         Determine `stroke_f` fluking rate and cut-off frequency
     #--------------------------------------------------------------------------
-    # TODO cutoff, stroke_f = 1.5 # Hz
-
+    log.new_entry('Get stroke frequency')
     # calculate power spectrum of the accelerometer data at the whale frame
     cutoff, stroke_f, f = utils_glides.get_stroke_freq(A_g, fs_a,
                                                        cfg['f'],
@@ -231,6 +248,10 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
     A_g_lf, A_g_hf = utils_signal.filter_accelerometer(A_g, fs_a,
                                                        cfg['cutoff'], order=5)
 
+    utils_plot.plot_lf_hf(A_g[:,0], A_g_lf[:,0], A_g_hf[:,0], title='x axis')
+    utils_plot.plot_lf_hf(A_g[:,1], A_g_lf[:,1], A_g_hf[:,1], title='y axis')
+    utils_plot.plot_lf_hf(A_g[:,2], A_g_lf[:,2], A_g_hf[:,2], title='z axis')
+
 
     # 3.2.4 Calculate the smooth pitch from the low pass filter acceleration
     #       signal to avoid incorporating signals above the stroking periods
@@ -238,27 +259,26 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
     log.new_entry('Calculate low-pass pitch, roll, heading')
     pitch_lf, roll_lf, heading_lf = utils_prh.calc_PRH(A_g_lf)
 
-    utils_plot.plot_pitch_roll(pitch, roll, pitch_lf, roll_lf)
-
 
     # 4 Define precise descent and ascent phases
     #--------------------------------------------------------------------------
     # TODO remove pitch_roll plot?
-    cfg['nn'] = utils_dives.select_last_dive(depths, pitch, pitch_lf, T, fs_a)
+    #cfg['nn'] = utils_dives.select_last_dive(depths, pitch, pitch_lf, dive_ind, fs_a)
 
     log.new_entry('Get precise indices of descents, ascents, phase and bottom')
-    T, DES, ASC, phase, bottom = utils_dives.get_des_asc(depths,
-                                                         T,
-                                                         pitch_lf,
-                                                         fs_a,
-                                                         cfg['min_dive_thresh'])
+    des, asc = utils_dives.get_des_asc2(depths, dive_mask, pitch_lf,
+                                        cfg['cutoff'], fs_a, order=5)
 
-    utils_plot.plot_depth_descent_ascent(depths, T, fs_a, phase)
+    phase  = utils_dives.get_phase(depths, des, asc)
+    bottom = utils_dives.get_bottom(depths, des, asc)
+
+    utils_plot.plot_dives_pitch(depths, dive_mask, des, asc, pitch, pitch_lf)
 
 
     # 5 Estimate swim speed
     #--------------------------------------------------------------------------
     log.new_entry('Estimate swim speed')
+    # TODO interpolate speed
     swim_speed = utils_signal.inst_speed(depths,
                                          pitch_lf,
                                          fs_a,
@@ -272,12 +292,9 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
 
     # 6 Estimate seawater desnity around the tagged animal
     #--------------------------------------------------------------------------
-    # TODO DTS: nx3 pressure?, temperature, Salinity
-    # TODO D?
-    import utils_seawater
-    #Dsw = utils_seawater.estimate_seawater_desnity(DTS, D)
     log.new_entry('Estimate seawater density - NOTE: CURRENTLY RANDOM')
     Dsw = numpy.random.random(len(depths)) + 32.0
+    #Dsw = utils_seawater.estimate_seawater_desnity(DTS, D)
 
 
     # 7.1 Extract strokes and glides using heave
@@ -294,7 +311,10 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
     #   hpf-z when detecting glides in the next step use Ahf_Anlf() with n=3
 
     log.new_entry('Get fluke signal threshold')
-    cfg['J'] =  utils_glides.plot_hf_acc_histo(A_g_hf, fs_a, cfg['stroke_f'], DES, ASC)
+    utils_plot.plot_hf_acc_histo(A_g_hf, fs_a, cfg['stroke_f'], des, asc)
+
+    # Get user selection for J
+    cfg['J'] = utils.recursive_input('J (fluke magnitude)', float)
 
     if Mw == None:
         # Get GL, KK from dorso-ventral axis of the HPF acc signal
@@ -310,7 +330,7 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
 
     # check glides duration and positive and negative zero crossings (KK) based
     # on selected J and tmax#
-    sgl_type, gl_ind = utils_glides.get_sgl_type(depths, fs_a, GL)
+    gl_mask = utils_glides.get_gl_mask(depths, fs_a, GL)
 
     # TODO calculate pry
     #utils_plot.plot_depth_at_glides(depths, sgl_dur, pry, fs_a, t)
@@ -320,17 +340,6 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
     #--------------------------------------------------------------------------
     log.new_entry('Make sub-glides, duration {}'.format(cfg['dur']))
     sgl_ind = utils_glides.split_glides(cfg['dur'], GL)
-
-    import numpy
-    # check that all subglides have a duration of `dur` seconds
-    sgl_dur = sgl_ind[:, 1] - sgl_ind[:, 0]
-
-    # If subglide `min_dur` set, make sure all above `min_dur`, below `dur`
-    if cfg['min_dur']:
-        assert numpy.all((sgl_dur <= cfg['dur']) & (sgl_dur >= cfg['min_dur']))
-    # Else make sure all duration equal to `dur`
-    else:
-        assert numpy.all(sgl_dur == cfg['dur'])
 
 
     # 9 create summary table required for body density
@@ -350,11 +359,14 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
                                             heading_lf, swim_speed, D, phase,
                                             cfg['dur'], sgl_ind, pitch_lf_deg,
                                             temperature, Dsw)
+    numpy.save(os.path.join(out_path, 'glide.npy'), glide)
+
 
     # 11 Calculate glide ratio
     #--------------------------------------------------------------------------
     log.new_entry('Calculate glide ratio')
-    gl_ratio = utils_glides.calc_glide_ratios(T, fs_a, bottom, sgl_type, pitch_lf)
+    gl_ratio = utils_glides.calc_glide_ratios(dive_ind, des, asc, gl_mask, pitch_lf)
+    numpy.save(os.path.join(out_path, 'gl_ratio.npy'), glide)
 
 
     # SAVE CONFIG
@@ -391,7 +403,7 @@ def load_glide_config(config_path):
         # Acceleromter/Magnotometer axis to analyze
         cfg['n'] = 1
 
-        # Index position in T of last dive to use for analysis
+        # Index position in dive_ind of last dive to use for analysis
         cfg['nn'] = -1
 
         # TODO dive threshold to identify what is active data from the tag
@@ -404,7 +416,7 @@ def load_glide_config(config_path):
         cfg['nperseg'] = 512
 
         # Minimumn power of frequency for identifying stroke_f (3. Get stroke_f)
-        cfg['peak_thresh'] = 0.25
+        cfg['peak_thresh'] = 0.10
 
         # Frequency of stroking, determinded from PSD plot
         cfg['stroke_f'] = 0.4 # Hz
@@ -451,15 +463,15 @@ def update_config(cfg, key, value):
     return cfg
 
 
-def load_lleo(data_root_path, data_path, cal_path, depth_thresh):
+def load_lleo(data_root, data_path, cal_path, depth_thresh):
     '''Load lleo data for calculating body condition'''
     import numpy
     import os
 
     from pylleo.pylleo import lleoio, lleocal
 
-    data_path = os.path.join(data_root_path, data_path)
-    cal_yaml_path = os.path.join(data_root_path, cal_path, 'cal.yaml')
+    data_path = os.path.join(data_root, data_path)
+    cal_yaml_path = os.path.join(data_root, cal_path, 'cal.yaml')
 
     sample_f  = 1
 
@@ -527,4 +539,4 @@ def load_lleo(data_root_path, data_path, cal_path, depth_thresh):
 
 
 if __name__ == '__main__':
-    run_lleo_glide_analysis()
+    glide, gl_ratio = run_lleo_glide_analysis()
