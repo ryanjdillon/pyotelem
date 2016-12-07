@@ -1,116 +1,22 @@
 
-def get_sgl_type(depths, fs, GL):
+def get_gl_mask(depths, fs, GL):
     '''Get phase of subglides, depth at glide, duration, times'''
     import numpy
 
     import utils
     t = numpy.arange(len(depths))/fs
 
+    #TODO make GL created as index numbers
+
     # Accelerometer (orginally in addition to magnetometer method)
-    GLdur             = GL[:,1] - GL[:,0]
-    GLT               = numpy.vstack([GL[:,0], GLdur]).T
-    gl_ind, _         = utils.event_on(GLT, t)
+    gl_dur             = GL[:,1] - GL[:,0]
+    gl_T               = numpy.vstack([GL[:,0], gl_dur]).T
+    gl_mask, _         = utils.event_on(gl_T, t)
 
-    # sgl_type indicates whether it is stroking (1) or gliding(0)
-    sgl_type = numpy.copy(gl_ind)
-    sgl_type[gl_ind == 0] = 1
-    sgl_type[gl_ind < 0]  = 0
+    for start, end in (GL/fs_a).round().astype(int):
+        gl_mask[start:end] = True
 
-    return sgl_type, gl_ind
-
-
-def plot_get_fluke(depths, pitch, A_g_hf, T, nn, fs):
-    import matplotlib.pyplot as plt
-
-    import utils
-
-    # Get max acc from 0:nn over axes [0,2] (x, z)
-    maxy = numpy.max(numpy.max(Ahf[round(T[0, 0] * fs): round(T[nn, 1] * fs), [0,2]]))
-
-    # Selection plot of depths an HPF x & z axes
-    ax1 = plt.gca()
-    ax2 = ax1.twiny()
-
-    ax1.plot(range(len(depths)), depths, label='depths')
-    ax2.plot(range(len(pitch)), Ahf[:, 0], lable='HPF x')
-    ax2.plot(range(len(pitch)), Ahf[:, 2], lable='HPF z')
-
-    ax1.invert_yaxis()
-
-    for ax in [ax1, ax2]:
-        ax.set_ylim(-2*maxy, 2*maxy)
-        #ax.ytick(round(-2*maxy*10) / 10: 0.1: 2 * maxy)
-
-    plt.legend(loc='upper right')
-    plt.title('Zoom in to find thresholds for fluking, then enter it for J')
-
-    plt.show()
-
-    # Get user input for J
-    J = utils.recursive_input('J (fluke magnitude)', float)
-
-    return J
-
-
-def plot_hf_acc_histo(Ahf, fs_a, stroke_f, DES, ASC):
-    '''Get user selection of J from plot of histograms of high-pass filtered
-    accelerometry
-
-    Args
-    ----
-    Ahf: numpy.ndarray, shape(n,3)
-        triaxial accelerometer data: index 1=x, 2=y, 3=z
-    fs_a: int
-        sampling rate (Hz)
-    stroke_f: float
-        stroke frequency (Hz)
-
-    Returns
-    -------
-    J: float
-        magnitude threshold for detecting a fluke stroke in m/s2.  If J is not
-        given, fluke strokes will not be located but the rotations signal (pry)
-        will be computed.
-    '''
-    import matplotlib.pyplot as plt
-    import numpy
-
-    import utils
-
-    def plot_acc_distribution(ax, A_des, A_asc, title=''):
-        # Group all descent and ascent data together for binning strokes
-        TOTAL = numpy.abs(numpy.hstack([A_asc, A_des]).T)
-
-        # TODO from .m code
-        # Split into bins of 2*number of samples per stroke
-        #Y, yb = utils.buffer(TOTAL, 2 * round(1/stroke_f*fs_a))
-        #Ymax = numpy.sort(numpy.max(Y, axis=0))
-        #ax.hist(numpy.max(Y, axis=0), 100)
-
-        # Plot distribution of all acceleration samples
-        Ymax = numpy.sort(TOTAL)
-        ax.plot(range(len(Ymax)), Ymax)
-
-        ax.set_ylim(0, numpy.max(Ymax))
-        ax.title.set_text(title)
-
-        return ax
-
-    # Make histograms to review and select J from
-    fig, (ax1, ax2) = plt.subplots(2, 1)
-
-    # HPF x acc. ascent and descent
-    ax1 = plot_acc_distribution(ax1, Ahf[ASC, 0], Ahf[DES, 0], title='hpf-x acc')
-
-    # HPF y acc. ascent and descent
-    ax2 = plot_acc_distribution(ax2, Ahf[ASC, 2], Ahf[DES, 2], title='hpf-z acc')
-
-    plt.show()
-
-    # Get user selection for J
-    J = utils.recursive_input('J (fluke magnitude)', float)
-
-    return J
+    return gl_mask
 
 
 def get_stroke_freq(x, fs_a, f, nperseg, peak_thresh, auto_select=False,
@@ -177,25 +83,23 @@ def get_stroke_freq(x, fs_a, f, nperseg, peak_thresh, auto_select=False,
         return cutoff, stroke_f
 
 
-    def manual_freq(x, fs_a, nperseg, peak_thresh):
+    def manual_freq(x, fs_a, nperseg, peak_thresh, title):
         '''Manually look at plot, then enter cutoff frequency for x,y,z'''
         import matplotlib.pyplot as plt
 
         import utils
+        import utils_plot
         import utils_signal
 
         f_welch, S, _, _ = utils_signal.calc_PSD_welch(x, fs_a, nperseg)
 
-        peak_loc, peak_mag = utils_signal.peakfinder(S, sel=None, peak_thresh=peak_thresh)
+        # TODO this is a number that just works, better solution? put in cfg?
+        sel = 8/fs_a
+        peak_loc, peak_mag = utils_signal.peakfinder(S, sel=sel, peak_thresh=peak_thresh)
         peak_idx = peak_loc[peak_mag == max(peak_mag)]
 
         # Plot power specturm against frequency distribution
-        plt.plot(f_welch, S)
-        plt.scatter(f_welch[peak_loc], S[peak_loc], label='peaks')
-        plt.legend(loc='upper right')
-        plt.xlabel('Fequency (Hz)')
-        plt.ylabel('"Power" (g**2 Hz**−1)')
-        plt.show()
+        utils_plot.plot_welch_peaks(f_welch, S, peak_loc, title=title)
 
         # Get user input of cutoff frequency identified off plots
         cutoff = utils.recursive_input('cutoff frequency', float)
@@ -211,9 +115,8 @@ def get_stroke_freq(x, fs_a, f, nperseg, peak_thresh, auto_select=False,
                           'further testing--implementation not active')
 
     # Axes to be used for determining `stroke_f`
-    # 1: dorsa-ventral
-    # 2: lateral
-    stroke_axes = [1, 2]
+    stroke_axes = [(0,'x','dorsa-ventral'),
+                   (2,'z','lateral')]
 
     # Lists for appending values from each axis
     cutoff_all   = list()
@@ -221,12 +124,13 @@ def get_stroke_freq(x, fs_a, f, nperseg, peak_thresh, auto_select=False,
     f_all        = list()
 
     # Iterate over axes in `stroke_axes` list appending output to above lists
-    for i in stroke_axes:
+    for i, i_alph, name in stroke_axes:
         # Auto calculate, else promter user for value after inspecting PSD plot
         if auto_select == True:
             cutoff, stroke_f = automatic_freq(x, fs_a, nperseg, peak_thresh)
         elif auto_select == False:
-            cutoff, stroke_f =  manual_freq(x[:,i], fs_a, nperseg, peak_thresh)
+            title = 'PSD - {} axis (n={}), {}'.format(i_alph, i, name)
+            cutoff, stroke_f =  manual_freq(x[:,i], fs_a, nperseg, peak_thresh, title)
 
         # Append values for axis to list
         cutoff_all.append(cutoff)
@@ -302,24 +206,16 @@ def get_stroke_glide_indices(A_g_hf_n, fs_a, n, J, t_max):
         raise IndexError('A_g_hf_n multidimensional: Glide index determination '
                          'requires 1-D acceleration array as input')
 
-    # Find cues to each zero-crossing in vector pry(:,n), rotations around
-    # the n axis.
+    # Find zero-crossing start/stops in pry(:,n), rotations around n axis.
     zc = utils_signal.findzc(A_g_hf_n, J, (t_max* fs_a) / 2)
 
     # find glides - any interval between zeros crossings greater than tmax
     ind = numpy.where(zc[1:, 0] - zc[0:-1, 1] > fs_a*t_max)[0]
     gl_ind = numpy.vstack([zc[ind, 0] - 1, zc[ind + 1, 1] + 1]).T
 
-    # Compute mean index position of glide, and typecast to int for indexing
-    # Shorten the glides to only include sections with jerk < J
+    # Compute mean index position of glide, Only include sections with jerk < J
     gl_c = numpy.round(numpy.mean(gl_ind, 1)).astype(int)
     gl_ind = numpy.round(gl_ind).astype(int)
-
-    # TODO Remove if not necessary
-    # Lambda function: return 0 if array has no elements, else returns first element
-    #get_1st_or_zero = lambda x: x[0] if x.size != 0 else 0
-            #over_J1 = get_1st_or_zero(over_J1)
-            #over_J2 = get_1st_or_zero(over_J2)
 
     for i in range(len(gl_c)):
         col = range(gl_c[i], gl_ind[i, 0], - 1)
@@ -399,7 +295,7 @@ def split_glides(dur, GL, min_dur=False):
     if min_dur == False:
         min_dur = dur
 
-    # GL plus column for total duration of glide
+    # GL plus column for total duration of glide, seconds
     gl_ind_diff = numpy.vstack((GL.T, GL[:, 1] - GL[:, 0])).T
 
     # Split all glides in GL
@@ -447,6 +343,16 @@ def split_glides(dur, GL, min_dur=False):
     # Stack and transpose indices into shape (n, 2)
     sgl_ind = numpy.vstack((sgl_start_ind, sgl_end_ind)).T
 
+    # check that all subglides have a duration of `dur` seconds
+    sgl_dur = sgl_ind[:, 1] - sgl_ind[:, 0]
+
+    # If subglide `min_dur` set, make sure all above `min_dur`, below `dur`
+    if min_dur:
+        assert numpy.all((sgl_dur <= dur) & (sgl_dur >= min_dur))
+    # Else make sure all duration equal to `dur`
+    else:
+        assert numpy.all(sgl_dur == dur)
+
     return sgl_ind
 
 
@@ -461,48 +367,74 @@ def calc_glide_des_asc( depths, fs, pitch_lf, roll_lf, heading_lf, swim_speed,
     '''
     import astropy.stats
     import numpy
+    import pandas
 
-    # TODO make numpy record array?
-    glide = numpy.zeros((len(sgl_ind), 24))
+    keys = ['start_idx',
+            'stop_idx',
+            'duration',
+            'mean_depth',
+            'depth_change',
+            'mean_swimspeed',
+            'mean_pitch',
+            'mean_sin_pitch',
+            'SD_pitch',
+            'mean_temp',
+            'mean_swdensity',
+            'mean_acceleration',
+            'R2_speed_vs_time',
+            'SE_speed_vs_time',
+            'dive_phase',
+            'dive_number',
+            'dive_max_depth',
+            'dive_duration',
+            'mean_pitch_circ',
+            'pitch_concentration',
+            'mean_roll_circ',
+            'roll_concentration',
+            'mean_heading_circ',
+            'heading_concentration',]
+
+    # Create empty pandas dataframe for summary values
+    glide = pandas.DataFrame(index=range(len(sgl_ind)), columns=keys)
 
     for i in range(len(sgl_ind)):
         idx_start = int(round(sgl_ind[i,0] * fs))
         idx_end = int(round(sgl_ind[i,1] * fs))
 
         # sub-glide start point in seconds
-        glide[i,0] = sgl_ind[i,0]
+        glide['start_idx'][i] = sgl_ind[i,0]
 
         # sub-glide end point in seconds
-        glide[i,1] = sgl_ind[i,1]
+        glide['stop_idx'][i] = sgl_ind[i,1]
 
         # sub-glide duration
-        glide[i,2] = sgl_ind[i,1] - sgl_ind[i,0]
+        glide['duration'][i] = sgl_ind[i,1] - sgl_ind[i,0]
 
         # mean depth(m)during sub-glide
-        glide[i,3] = numpy.mean(depths[idx_start:idx_end])
+        glide['mean_depth'][i] = numpy.mean(depths[idx_start:idx_end])
 
         # total depth(m)change during sub-glide
-        glide[i,4] = abs(depths[idx_start] - depths[idx_end])
+        glide['depth_change'][i] = abs(depths[idx_start] - depths[idx_end])
 
         # mean swim speed during the sub-glide, only given if pitch>30 degrees
-        glide[i,5] = numpy.mean(swim_speed[idx_start:idx_end])
+        glide['mean_swimspeed'][i] = numpy.mean(swim_speed[idx_start:idx_end])
 
         # mean pitch during the sub-glide
-        glide[i,6] = numpy.mean(pitch_lf_deg[idx_start:idx_end])
+        glide['mean_pitch'][i] = numpy.mean(pitch_lf_deg[idx_start:idx_end])
 
         # mean sin pitch during the sub-glide
-        glide[i,7] = numpy.sin(numpy.mean(pitch_lf_deg[idx_start:idx_end]))
+        glide['mean_sin_pitch'][i] = numpy.sin(numpy.mean(pitch_lf_deg[idx_start:idx_end]))
 
         # SD of pitch during the sub-glide
         # TODO just use original radian array, not deg
         #      make sure "original" is radians ;)
-        glide[i,8] = numpy.std(pitch_lf_deg[idx_start:idx_end]) * 180 / numpy.pi
+        glide['SD_pitch'][i] = numpy.std(pitch_lf_deg[idx_start:idx_end]) * 180 / numpy.pi
 
         # mean temperature during the sub-glide
-        glide[i,9] = numpy.mean(temperature[idx_start:idx_end])
+        glide['mean_temp'][i] = numpy.mean(temperature[idx_start:idx_end])
 
         # mean seawater density (kg/m^3) during the sub-glide
-        glide[i,10] = numpy.mean(Dsw[idx_start:idx_end])
+        glide['mean_swdensity'][i] = numpy.mean(Dsw[idx_start:idx_end])
 
         # TODO check matlab here
         try:
@@ -513,26 +445,26 @@ def calc_glide_des_asc( depths, fs, pitch_lf, roll_lf, heading_lf, swim_speed,
                                                       numpy.ones(len(ypoly), 1)])
 
             # mean acceleration during the sub-glide
-            glide[i,11] = B[0]
+            glide['mean_acceleration'][i] = B[0]
 
             # R2-value for the regression swim speed vs. time during the sub-glide
-            glide[i,12] = STATS[0]
+            glide['R2_speed_vs_time'][i] = STATS[0]
 
             # SE of the gradient for the regression swim speed vs. time during the
             # sub-glide
-            glide[i,13] = STATS[3]
+            glide['SE_speed_vs_time'][i] = STATS[3]
 
         except:
 
             # mean acceleration during the sub-glide
-            glide[i,11] = numpy.nan
+            glide['mean_acceleration'][i] = numpy.nan
 
             # R2-value for the regression swim speed vs. time during the sub-glide
-            glide[i,12] = numpy.nan
+            glide['R2_speed_vs_time'][i] = numpy.nan
 
             # SE of the gradient for the regression swim speed vs. time during the
             # sub-glide
-            glide[i,13] = numpy.nan
+            glide['SE_speed_vs_time'][i] = numpy.nan
 
 
         # Dive phase:0 bottom, -1 descent, 1 ascent, NaN not dive phase
@@ -544,7 +476,7 @@ def calc_glide_des_asc( depths, fs, pitch_lf, roll_lf, heading_lf, swim_speed,
             sp = 0
         elif sumphase > 0:
             sp = 1
-        glide[i,14] = sp
+        glide['dive_phase'][i] = sp
 
         D_ind = numpy.where((D[: , 0]*fs < idx_start) & (D[: , 1]*fs > idx_end))[0]
 
@@ -555,80 +487,98 @@ def calc_glide_des_asc( depths, fs, pitch_lf, roll_lf, heading_lf, swim_speed,
             Dinf = D[D_ind, :][0]
 
         # Dive number in which the sub-glide recorded
-        glide[i,15] = Dinf[6]
+        glide['dive_number'][i] = Dinf[6]
 
         # Maximum dive depth (m) of the dive
-        glide[i,16] = Dinf[5]
+        glide['dive_max_depth'][i] = Dinf[5]
 
         # Dive duration (s) of the dive
-        glide[i,17] = Dinf[2]
+        glide['dive_duration'][i] = Dinf[2]
 
         # Mean pitch(deg) calculated using circular statistics
-        glide[i,18] = astropy.stats.circmean(pitch_lf[idx_start:idx_end])
+        glide['mean_pitch_circ'][i] = astropy.stats.circmean(pitch_lf[idx_start:idx_end])
 
         # Measure of concentration (r) of pitch during the sub-glide (i.e. 0 for
         # random direction, 1 for unidirectional)
-        glide[i,19] = 1 - astropy.stats.circvar(pitch_lf[idx_start:idx_end])
+        glide['pitch_concentration'][i] = 1 - astropy.stats.circvar(pitch_lf[idx_start:idx_end])
 
         # Mean roll (deg) calculated using circular statistics
-        glide[i,20] = astropy.stats.circmean(roll_lf[idx_start:idx_end])
+        glide['mean_roll_circ'][i] = astropy.stats.circmean(roll_lf[idx_start:idx_end])
 
         # Measure of concentration (r) of roll during the sub-glide
-        glide[i,21] = 1 - astropy.stats.circvar(roll_lf[idx_start:idx_end])
+        glide['roll_concentration'][i] = 1 - astropy.stats.circvar(roll_lf[idx_start:idx_end])
 
         # Mean heading (deg) calculated using circular statistics
-        glide[i,22] = astropy.stats.circmean(heading_lf[idx_start:idx_end])
+        glide['mean_heading_circ'][i] = astropy.stats.circmean(heading_lf[idx_start:idx_end])
 
         # Measure of concentration (r) of heading during the sub-glide
-        glide[i,23] = 1 - astropy.stats.circvar(heading_lf[idx_start:idx_end])
+        glide['heading_concentration'][i] = 1 - astropy.stats.circvar(heading_lf[idx_start:idx_end])
 
     return glide
 
 
-def calc_glide_ratios(T, fs, bottom, SGtype, pitch_lf):
+def calc_glide_ratios(dive_ind, des, asc, gl_mask, pitch_lf):
     import numpy
+    import pandas
 
     # TODO gl_ratio as numpy record array
-    gl_ratio = numpy.zeros((T.shape[0], 10))
+    gl_ratio = numpy.zeros((dive_ind.shape[0], 10))
 
-    for dive in range(len(T)):
-        # it is selecting the whole dive
-        kk_des = numpy.arange(round(fs * T[dive, 0]),
-                             round(fs * bottom[dive, 0]), dtype=int)
+    keys = ['des_duration',
+            'des_gl_duration',
+            'des_gl_ratio',
+            'des_mean_pitch',
+            'des_rate',
+            'asc_duration',
+            'asc_gl_duration',
+            'asc_gl_ratio',
+            'asc_mean_pitch',
+            'asc_rate',]
 
-        # it is selecting the whole dive
-        kk_as = numpy.arange(round(fs * bottom[dive,2] ),
-                             round(fs * T[dive,1]), dtype = int)
+    gl_ratio_df = pandas.DataFrame(index=range(len(dive_ind)), columns=keys)
 
+    # For each dive with start/stop indices in dive_ind
+    for i in range(len(dive_ind)):
+        # Get indices for descent and ascent phase of dive `i`
+        des_ind = numpy.where(des[dive_ind[i,0]:dive_ind[i,1]])[0]
+        asc_ind = numpy.where(asc[dive_ind[i,0]:dive_ind[i,1]])[0]
+
+        print(des_ind, type(des_ind))
+        # DESCENT
         # total duration of the descet phase (s)
-        gl_ratio[dive, 0] = len(kk_des) / fs
+        gl_ratio_df['des_duration'][i] = len(des_ind)
 
         # total glide duration during the descet phase (s)
-        gl_ratio[dive, 1] = len(numpy.where(SGtype[kk_des] == 0)[0]) / fs
+        des_glides = numpy.where(gl_mask[des_ind])[0]
+        gl_ratio['des_gl_duration'][i] = len(des_glides)
 
-        # glide ratio during the descet phase
-        gl_ratio[dive, 2] = gl_ratio[dive, 1] / gl_ratio[dive, 0]
+        # glide ratio during the descent phase
+        gl_ratio['des_gl_ratio'][i] = gl_ratio['des_gl_duration'][i] / len(des_ind)
 
-        # mean pitch during the descet phase(degrees)
-        gl_ratio[dive, 3] = numpy.mean(pitch_lf[kk_des] * 180 / numpy.pi)
+        # mean pitch during the descent phase(degrees)
+        gl_ratio['des_mean_pitch'][i] = numpy.mean(numpy.rad2deg(pitch_lf[des_ind]))
 
-        # descent rate (m/s)
-        gl_ratio[dive, 4] = bottom[dive, 1] / gl_ratio[dive, 0]
+        # descent rate (m/s) #TODO changed to (m/sample)
+        max_depth_des = depths[des_ind].max()
+        gl_ratio['des_rate'][i] = max_depth_des / len(des_ind)
 
-        # total duration of the ascet phase (s)
-        gl_ratio[dive, 5] = len(kk_as) / fs
+        # ASCENT
+        # total duration of the ascent phase (s)
+        gl_ratio_df['asc_duration'][i] = len(asc_ind)
 
-        # total glide duration during the ascet phase (s)
-        gl_ratio[dive, 6] = len(numpy.where(SGtype[kk_as] == 0)[0]) / fs
+        # total glide duration during the ascent phase (s)
+        asc_glides = numpy.where(gl_mask[asc_ind])[0]
+        gl_ratio['asc_gl_duration'][i] = len(asc_glides)
 
-        # glide ratio during the ascet phase
-        gl_ratio[dive, 7] = gl_ratio[dive, 6] / gl_ratio[dive, 5]
+        # glide ratio during the ascent phase
+        gl_ratio['asc_gl_ratio'][i] = gl_ratio['asc_gl_duration'][i] / len(asc_ind)
 
-        # mean pitch during the ascet phase(degrees)
-        gl_ratio[dive, 8] = numpy.mean(pitch_lf[kk_as] * 180 / numpy.pi)
+        # mean pitch during the ascent phase(degrees)
+        gl_ratio['asc_mean_pitch'][i] = numpy.mean(numpy.rad2deg(pitch_lf[asc_ind]))
 
-        # ascent rate (m/s)
-        gl_ratio[dive, 9] = bottom[dive, 2] / gl_ratio[dive, 5]
+        # ascent rate (m/s) #TODO changed to (m/sample)
+        max_depth_asc = depths[asc_ind].max()
+        gl_ratio['asc_rate'][i] = max_depth_asc / len(asc_ind)
 
     return gl_ratio
 
