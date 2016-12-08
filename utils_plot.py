@@ -54,7 +54,6 @@ def plot_noncontiguous(ax, data, ind, color=colors[0], label=''):
     -------
     ax: matplotlib axes object
     '''
-    import matplotlib.pyplot as plt
 
     def slice_with_nans(data, ind):
         '''Insert nans in indices and data where indices non-contiguous'''
@@ -517,19 +516,12 @@ def plot_hf_acc_histo(Ahf, fs_a, stroke_f, DES, ASC):
     return None
 
 
-def plot_depth_at_glides(depths, sgl_dur, pry, fs, t):
-    '''Plot depth at glides using pry'''
+def plot_glide_depths(depths, sgl_mask):
+    '''Plot depth at glides'''
+    fig, ax = plt.subplots()
 
-    import utils
-
-    t = numpy.arange(len(depths))/fs
-    #t = numpy.arange(0, len(pry[:,1])/fs)
-
-    gl_ind = utils.event_on(sgl_dur, t)
-    p_gl   = numpy.copy(depths)
-    p_gl[gl_ind==0] = numpy.nan
-
-    plt.plot(t * fs, p_gl, color=colors[0], linewidth=linewidth)
+    ax = plot_noncontiguous(ax, depths, numpy.where(sgl_mask)[0])
+    ax.invert_yaxis()
 
     plt.show()
 

@@ -1,10 +1,10 @@
 
-def get_gl_mask(depths, fs, GL):
+def get_gl_mask(depths, fs_a, GL):
     '''Get phase of subglides, depth at glide, duration, times'''
     import numpy
 
     import utils
-    t = numpy.arange(len(depths))/fs
+    t = numpy.arange(len(depths))/fs_a
 
     #TODO make GL created as index numbers
 
@@ -243,7 +243,7 @@ def get_stroke_glide_indices(A_g_hf_n, fs_a, n, J, t_max):
 
 
 
-def split_glides(dur, fs_a, GL, min_dur=False):
+def split_glides(n_samples, dur, fs_a, GL, min_dur=None):
     '''Get start/stop indices of each `dur` lenth sub-glide for glides in GL
 
     Args
@@ -288,11 +288,14 @@ def split_glides(dur, fs_a, GL, min_dur=False):
     '''
     import numpy
 
-    # If minimum duration not passed, set to `min_dur` to skip slices < `dur`
-    if min_dur == False:
-        min_dur = dur
+    # Convert `dur` in seconds to number of samples
+    ndur = dur * fs_a
 
-    n_dur = dur * fs
+    # If minimum duration not passed, set to `min_dur` to skip slices < `dur`
+    if not min_dur:
+        min_ndur = dur * fs_a
+    else:
+        min_ndur = min_dur * fs_a
 
     # GL plus column for total duration of glide, seconds
     gl_ind_diff = numpy.vstack((GL.T, GL[:, 1] - GL[:, 0])).T
@@ -346,17 +349,22 @@ def split_glides(dur, fs_a, GL, min_dur=False):
     sgl_ndur = sgl_ind[:, 1] - sgl_ind[:, 0]
 
     # If subglide `min_ndur` set, make sure all above `min_ndur`, below `ndur`
-    if min_ndur:
+    if min_dur:
         assert numpy.all((sgl_ndur <= ndur) & (sgl_ndur >= min_ndur))
     # Else make sure all nduration equal to `ndur`
     else:
         assert numpy.all(sgl_ndur == ndur)
 
-    return sgl_ind
+    # Create sgl_mask
+    sgl_mask = numpy.zeros(n_samples, dtype=bool)
+    for start, stop in sgl_ind:
+        sgl_mask[start:stop] = True
+
+    return sgl_ind, sgl_mask
 
 
-def calc_glide_des_asc( depths, fs, pitch_lf, roll_lf, heading_lf, swim_speed,
-        D, phase, dur, sgl_ind, pitch_lf_deg, temperature, Dsw):
+def calc_glide_des_asc( depths, fs_a, pitch_lf, roll_lf, heading_lf, swim_speed,
+        D, phase, sgl_ind, pitch_lf_deg, temperature, Dsw):
     '''Calculate glide ascent and descent summary data
 
     Args
@@ -397,8 +405,8 @@ def calc_glide_des_asc( depths, fs, pitch_lf, roll_lf, heading_lf, swim_speed,
     glide = pandas.DataFrame(index=range(len(sgl_ind)), columns=keys)
 
     for i in range(len(sgl_ind)):
-        idx_start = int(round(sgl_ind[i,0] * fs))
-        idx_end = int(round(sgl_ind[i,1] * fs))
+        idx_start = int(round(sgl_ind[i,0]))
+        idx_end = int(round(sgl_ind[i,1]))
 
         # sub-glide start point in seconds
         glide['start_idx'][i] = sgl_ind[i,0]
@@ -435,8 +443,8 @@ def calc_glide_des_asc( depths, fs, pitch_lf, roll_lf, heading_lf, swim_speed,
         # mean seawater density (kg/m^3) during the sub-glide
         glide['mean_swdensity'][i] = numpy.mean(Dsw[idx_start:idx_end])
 
-        # TODO check matlab here
         try:
+            # TODO this will always go to except, need to test
             xpoly = numpy.arange(idx_start, idx_end)
             ypoly = swim_speed[xpoly]
 
@@ -477,7 +485,8 @@ def calc_glide_des_asc( depths, fs, pitch_lf, roll_lf, heading_lf, swim_speed,
             sp = 1
         glide['dive_phase'][i] = sp
 
-        D_ind = numpy.where((D[: , 0]*fs < idx_start) & (D[: , 1]*fs > idx_end))[0]
+        # TODO eliminate D, too many random tables
+        D_ind = numpy.where((D[: , 0]*fs_a < idx_start) & (D[: , 1]*fs_a > idx_end))[0]
 
         if D_ind.size == 0:
             Dinf = numpy.zeros(D.shape[1])

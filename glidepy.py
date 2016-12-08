@@ -316,7 +316,11 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
     # 8 Make 5sec sub-glides
     #--------------------------------------------------------------------------
     log.new_entry('Make sub-glides, duration {}'.format(cfg['dur']))
-    sgl_ind = utils_glides.split_glides(cfg['dur'], GL)
+    # TODO include this somewhere
+    n_samples = len(depths)
+    sgl_ind, sgl_mask = utils_glides.split_glides(n_samples, cfg['dur'], fs_a, GL)
+
+    utils_plot.plot_glide_depths(depths, sgl_mask)
 
 
     # 9 create summary table required for body density
@@ -334,7 +338,7 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
     log.new_entry('Calculate glide descent and ascent')
     glide = utils_glides.calc_glide_des_asc(depths, fs_a, pitch_lf, roll_lf,
                                             heading_lf, swim_speed, D, phase,
-                                            cfg['dur'], sgl_ind, pitch_lf_deg,
+                                            sgl_ind, pitch_lf_deg,
                                             temperature, Dsw)
     numpy.save(os.path.join(out_path, 'glide.npy'), glide)
 
@@ -353,7 +357,7 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
     log.new_entry('Save config YAML file')
     save_config(cfg, config_yaml_path)
 
-    return glide, gl_ratio
+    return sgl_ind, glide, gl_ratio
 
 
 def load_glide_config(config_path):
