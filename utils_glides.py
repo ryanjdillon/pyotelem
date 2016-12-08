@@ -9,8 +9,8 @@ def get_gl_mask(depths, fs, GL):
     #TODO make GL created as index numbers
 
     # Accelerometer (orginally in addition to magnetometer method)
-    gl_dur             = GL[:,1] - GL[:,0]
-    gl_T               = numpy.vstack([GL[:,0], gl_dur]).T
+    gl_ndur             = GL[:,1] - GL[:,0]
+    gl_T               = numpy.vstack([GL[:,0], gl_ndur]).T
     gl_mask, _         = utils.event_on(gl_T, t)
 
     #for start, end in (GL/fs_a).round().astype(int):
@@ -158,6 +158,9 @@ def get_stroke_glide_indices(A_g_hf_n, fs_a, n, J, t_max):
     A_g_hf_n: 1-D ndarray
        whale frame triaxial accelerometer matrix at sampling rate fs_a.
 
+    fs_a: int
+        number of acclerometer samples per second
+
     n: int
         fundamental axis of the acceleration signal.
         1 for accelerations along the x axis, longitudinal axis.
@@ -183,14 +186,9 @@ def get_stroke_glide_indices(A_g_hf_n, fs_a, n, J, t_max):
         column) of any glides (i.e., no zero crossings in t_max or more
         seconds).Times are in seconds.
 
-    KK: 1-d ndarray
-        matrix of cues to zero crossings in seconds (1st column) and
-        zero-crossing directions (2nd column). +1 means a positive-going
-        zero-crossing. Times are in seconds.
-
     Note
     ----
-    If no J or t_max is given, J=[], or t_max=[], GL and KK returned as None
+    If no J or t_max is given, J=[], or t_max=[], GL returned as None
 
     `K`   changed to `zc`
     `kk`  changed to `col`
@@ -206,11 +204,14 @@ def get_stroke_glide_indices(A_g_hf_n, fs_a, n, J, t_max):
         raise IndexError('A_g_hf_n multidimensional: Glide index determination '
                          'requires 1-D acceleration array as input')
 
+    # Convert t_max to number of samples
+    n_max = t_max * fs_a
+
     # Find zero-crossing start/stops in pry(:,n), rotations around n axis.
-    zc = utils_signal.findzc(A_g_hf_n, J, (t_max* fs_a) / 2)
+    zc = utils_signal.findzc(A_g_hf_n, J, n_max/2)
 
     # find glides - any interval between zeros crossings greater than tmax
-    ind = numpy.where(zc[1:, 0] - zc[0:-1, 1] > fs_a*t_max)[0]
+    ind = numpy.where(zc[1:, 0] - zc[0:-1, 1] > n_max)[0]
     gl_ind = numpy.vstack([zc[ind, 0] - 1, zc[ind + 1, 1] + 1]).T
 
     # Compute mean index position of glide, Only include sections with jerk < J
@@ -235,18 +236,14 @@ def get_stroke_glide_indices(A_g_hf_n, fs_a, n, J, t_max):
 
             gl_ind[i,1] = gl_c[i] + over_J2 - 1
 
-    # convert sample numbers to times in seconds
-    # TODO zc[:, 2] could not be sign by the 4th col in zero-crossing K
-    KK = numpy.vstack((numpy.mean(zc[:, 0:1], 1) / fs_a, zc[:, 2])).T
+    GL = gl_ind
+    GL = GL[numpy.where(GL[:, 1] - GL[:, 0] > n_max / 2)[0], :]
 
-    GL = gl_ind / fs_a
-    GL = GL[numpy.where(GL[:, 1] - GL[:, 0] > t_max / 2)[0], :]
-
-    return GL, KK
+    return GL
 
 
 
-def split_glides(dur, GL, min_dur=False):
+def split_glides(dur, fs_a, GL, min_dur=False):
     '''Get start/stop indices of each `dur` lenth sub-glide for glides in GL
 
     Args
@@ -295,28 +292,30 @@ def split_glides(dur, GL, min_dur=False):
     if min_dur == False:
         min_dur = dur
 
+    n_dur = dur * fs
+
     # GL plus column for total duration of glide, seconds
     gl_ind_diff = numpy.vstack((GL.T, GL[:, 1] - GL[:, 0])).T
 
     # Split all glides in GL
     sgl_ind_started = False
     for i in range(len(GL)):
-        gl_dur = gl_ind_diff[i, 2]
+        gl_ndur = gl_ind_diff[i, 2]
 
         # Split into sub glides if longer than duration
-        if abs(gl_dur) > dur:
+        if abs(gl_ndur) > ndur:
 
             # Make list of index lengths to start of each sub-glide
-            n_sgl     = int(gl_dur//dur)
-            sgl_dur   = numpy.ones(n_sgl)*dur
-            sgl_start = numpy.arange(n_sgl)*(dur+1)
+            n_sgl     = int(gl_ndur//ndur)
+            sgl_ndur   = numpy.ones(n_sgl)*ndur
+            sgl_start = numpy.arange(n_sgl)*(ndur+1)
 
-            # Add remainder as a sub-glide, skips if `min_dur` not passed
-            if (gl_dur%dur > min_dur):
-                last_dur = numpy.floor(gl_dur%dur)
-                sgl_dur  = numpy.hstack([sgl_dur, last_dur])
+            # Add remainder as a sub-glide, skips if `min_ndur` not passed
+            if (gl_ndur%ndur > min_ndur):
+                last_ndur = numpy.floor(gl_ndur%ndur)
+                sgl_ndur  = numpy.hstack([sgl_ndur, last_ndur])
 
-                last_start = (len(sgl_start)*dur) + dur
+                last_start = (len(sgl_start)*ndur) + ndur
                 sgl_start  = numpy.hstack([sgl_start, last_start])
 
             # Get start and end index positions for each sub-glide
@@ -324,11 +323,11 @@ def split_glides(dur, GL, min_dur=False):
 
                 # TODO round these to ints? or they are times...
                 # starting at original glide start...
-                # sgl_start_ind: add index increments of dur+1 for next start idx
+                # sgl_start_ind: add index increments of ndur+1 for next start idx
                 next_start_ind = gl_ind_diff[i, 0] + sgl_start[k]
 
-                # end_glide: add `dur` to that to get ending idx
-                next_end_ind = next_start_ind + sgl_dur[k]
+                # end_glide: add `ndur` to that to get ending idx
+                next_end_ind = next_start_ind + sgl_ndur[k]
 
                 # If first iteration, set equal to first set of indices
                 if sgl_ind_started == False:
@@ -343,15 +342,15 @@ def split_glides(dur, GL, min_dur=False):
     # Stack and transpose indices into shape (n, 2)
     sgl_ind = numpy.vstack((sgl_start_ind, sgl_end_ind)).T
 
-    # check that all subglides have a duration of `dur` seconds
-    sgl_dur = sgl_ind[:, 1] - sgl_ind[:, 0]
+    # check that all subglides have a duration of `ndur` seconds
+    sgl_ndur = sgl_ind[:, 1] - sgl_ind[:, 0]
 
-    # If subglide `min_dur` set, make sure all above `min_dur`, below `dur`
-    if min_dur:
-        assert numpy.all((sgl_dur <= dur) & (sgl_dur >= min_dur))
-    # Else make sure all duration equal to `dur`
+    # If subglide `min_ndur` set, make sure all above `min_ndur`, below `ndur`
+    if min_ndur:
+        assert numpy.all((sgl_ndur <= ndur) & (sgl_ndur >= min_ndur))
+    # Else make sure all nduration equal to `ndur`
     else:
-        assert numpy.all(sgl_dur == dur)
+        assert numpy.all(sgl_ndur == ndur)
 
     return sgl_ind
 

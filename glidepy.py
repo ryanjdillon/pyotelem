@@ -36,11 +36,6 @@ J:
 t_max:
 GL: ndarray
     indices of glide events in data
-KK:
-    matrix of cues to zero crossings in seconds (1st column) and zero-crossing
-    directions (2nd column). +1 means a positive-going zero-crossing. Times are
-    in seconds.  this is already ensuring that all glides are longer than
-    tmax/2
 pitch_lf:
 roll_lf:
 heading_lf:
@@ -152,7 +147,6 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
     Returns
     -------
     GL
-    KK
     '''
     import numpy
 
@@ -300,8 +294,8 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
     cfg['J'] = utils.recursive_input('J (fluke magnitude)', float)
 
     if Mw == None:
-        # Get GL, KK from dorso-ventral axis of the HPF acc signal
-        GL, KK = utils_glides.get_stroke_glide_indices(A_g_hf[:,cfg['n']],
+        # Get GL from dorso-ventral axis of the HPF acc signal
+        GL = utils_glides.get_stroke_glide_indices(A_g_hf[:,cfg['n']],
                                                        fs_a,
                                                        cfg['n'],
                                                        cfg['J'],
@@ -311,7 +305,7 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
         pass
 
 
-    # check glides duration and positive and negative zero crossings (KK) based
+    # check glides duration and positive and negative zero crossings based
     # on selected J and tmax#
     gl_mask = utils_glides.get_gl_mask(depths, fs_a, GL)
 
@@ -329,7 +323,7 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
     #--------------------------------------------------------------------------
     log.new_entry('Create summary table for body density')
     if Mw:
-        MagAcc, pry, Sa, GL, KK, heading_lf, pitch_lf_deg = calc_mag_heading()
+        MagAcc, pry, Sa, GL, heading_lf, pitch_lf_deg = calc_mag_heading()
     # TODO check if correct
     else:
         pitch_lf_deg = numpy.rad2deg(pitch_lf)
@@ -530,13 +524,13 @@ def make_paths():
 #    J        = 2 / 180 * numpy.pi
 #    tmax     = 1 / stroke_f
 #
-#    MagAcc, pry, Sa, GL, KK = magnet_rot_sa(Aw, Mw, fs_a, stroke_f, f, alpha, n,
+#    MagAcc, pry, Sa, GL = magnet_rot_sa(Aw, Mw, fs_a, stroke_f, f, alpha, n,
 #                                            ind, J, tmax)
 #
 #    heading_lf = m2h(MagAcc.Mnlf[ind*fs_a, :], pitch_lf, roll_lf)
 #    pitch_lf_deg = pitch_lf * 180 / numpy.pi
 #
-#    return MagAcc, pry, Sa, GL, KK, heading_lf, pitch_lf_deg
+#    return MagAcc, pry, Sa, GL, heading_lf, pitch_lf_deg
 
 
 if __name__ == '__main__':
