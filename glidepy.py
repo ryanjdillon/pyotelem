@@ -116,23 +116,6 @@ import os
 @click.option('--debug', default=True, type=bool, help='Return on debug output')
 
 
-def make_paths():
-    import os
-
-    data_root = os.environ.get('LLEO_DATA_ROOT','')
-    data_path = os.environ.get('LLEO_DATA_PATH','')
-    cal_path = os.environ.get('LLEO_CAL_PATH','')
-    analysis_root = os.environ.get('LLEO_ANALYSIS_ROOT','')
-    config_path = os.environ.get('LLEO_CONF_PATH','')
-
-    data_path = os.path.join(data_root, data_path)
-    cal_path = os.path.join(data_root, cal_path)
-    config_path = os.path.join(analysis_root, config_path)
-    out_path = os.path.join(analysis_root, data_path)
-
-    return data_path, cal_path, out_path, conf_path
-
-
 def run_lleo_glide_analysis(data_root, data_path, cal_path,
         analysis_root, config_path, debug=False):
     '''Run glide analysis with little leonarda data'''
@@ -365,7 +348,8 @@ def glide_analysis(config_path, out_path, A_g, fs_a, depths, temperature,
     # 11 Calculate glide ratio
     #--------------------------------------------------------------------------
     log.new_entry('Calculate glide ratio')
-    gl_ratio = utils_glides.calc_glide_ratios(dive_ind, des, asc, gl_mask, pitch_lf)
+    gl_ratio = utils_glides.calc_glide_ratios(dive_ind, des, asc, gl_mask,
+                                              depths, pitch_lf)
     numpy.save(os.path.join(out_path, 'gl_ratio.npy'), glide)
 
 
@@ -517,6 +501,23 @@ def load_lleo(data_root, data_path, cal_path, depth_thresh):
     temperature = data['depth'][ind].values
 
     return A_g, depths, temperature, dt_a, fs_a
+
+
+def make_paths():
+    import os
+
+    data_root = os.environ.get('LLEO_DATA_ROOT','')
+    data_path = os.environ.get('LLEO_DATA_PATH','')
+    cal_path = os.environ.get('LLEO_CAL_PATH','')
+    analysis_root = os.environ.get('LLEO_ANALYSIS_ROOT','')
+    config_path = os.environ.get('LLEO_CONF_PATH','')
+
+    data_path = os.path.join(data_root, data_path)
+    cal_path = os.path.join(data_root, cal_path)
+    config_path = os.path.join(analysis_root, config_path)
+    out_path = os.path.join(analysis_root, data_path)
+
+    return data_path, cal_path, out_path, conf_path
 
 
 #def calc_mag_heading():
