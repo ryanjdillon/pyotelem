@@ -13,8 +13,8 @@ def get_gl_mask(depths, fs, GL):
     gl_T               = numpy.vstack([GL[:,0], gl_dur]).T
     gl_mask, _         = utils.event_on(gl_T, t)
 
-    for start, end in (GL/fs_a).round().astype(int):
-        gl_mask[start:end] = True
+    #for start, end in (GL/fs_a).round().astype(int):
+    #    gl_mask[start:end] = True
 
     return gl_mask
 
@@ -517,7 +517,7 @@ def calc_glide_des_asc( depths, fs, pitch_lf, roll_lf, heading_lf, swim_speed,
     return glide
 
 
-def calc_glide_ratios(dive_ind, des, asc, gl_mask, pitch_lf):
+def calc_glide_ratios(dive_ind, des, asc, gl_mask, depths, pitch_lf):
     import numpy
     import pandas
 
@@ -535,7 +535,7 @@ def calc_glide_ratios(dive_ind, des, asc, gl_mask, pitch_lf):
             'asc_mean_pitch',
             'asc_rate',]
 
-    gl_ratio_df = pandas.DataFrame(index=range(len(dive_ind)), columns=keys)
+    gl_ratio = pandas.DataFrame(index=range(len(dive_ind)), columns=keys)
 
     # For each dive with start/stop indices in dive_ind
     for i in range(len(dive_ind)):
@@ -543,42 +543,51 @@ def calc_glide_ratios(dive_ind, des, asc, gl_mask, pitch_lf):
         des_ind = numpy.where(des[dive_ind[i,0]:dive_ind[i,1]])[0]
         asc_ind = numpy.where(asc[dive_ind[i,0]:dive_ind[i,1]])[0]
 
-        print(des_ind, type(des_ind))
         # DESCENT
         # total duration of the descet phase (s)
-        gl_ratio_df['des_duration'][i] = len(des_ind)
+        gl_ratio['des_duration'][i] = len(des_ind)
 
         # total glide duration during the descet phase (s)
         des_glides = numpy.where(gl_mask[des_ind])[0]
         gl_ratio['des_gl_duration'][i] = len(des_glides)
 
-        # glide ratio during the descent phase
-        gl_ratio['des_gl_ratio'][i] = gl_ratio['des_gl_duration'][i] / len(des_ind)
+        if len(des_ind) == 0:
+            gl_ratio['des_gl_ratio'][i] = 0
+            gl_ratio['des_rate'][i] = 0
+        else:
+            # glide ratio during the descent phase
+            gl_ratio['des_gl_ratio'][i] = gl_ratio['des_gl_duration'][i] / len(des_ind)
+
+            # descent rate (m/s) #TODO changed to (m/sample)
+            max_depth_des = depths[des_ind].max()
+            gl_ratio['des_rate'][i] = max_depth_des / len(des_ind)
 
         # mean pitch during the descent phase(degrees)
         gl_ratio['des_mean_pitch'][i] = numpy.mean(numpy.rad2deg(pitch_lf[des_ind]))
 
-        # descent rate (m/s) #TODO changed to (m/sample)
-        max_depth_des = depths[des_ind].max()
-        gl_ratio['des_rate'][i] = max_depth_des / len(des_ind)
 
         # ASCENT
         # total duration of the ascent phase (s)
-        gl_ratio_df['asc_duration'][i] = len(asc_ind)
+        gl_ratio['asc_duration'][i] = len(asc_ind)
 
         # total glide duration during the ascent phase (s)
         asc_glides = numpy.where(gl_mask[asc_ind])[0]
         gl_ratio['asc_gl_duration'][i] = len(asc_glides)
 
-        # glide ratio during the ascent phase
-        gl_ratio['asc_gl_ratio'][i] = gl_ratio['asc_gl_duration'][i] / len(asc_ind)
+        if len(asc_ind) == 0:
+            gl_ratio['asc_gl_ratio'][i] = 0
+            gl_ratio['asc_rate'][i] = 0
+        else:
+            # glide ratio during the ascent phase
+            gl_ratio['asc_gl_ratio'][i] = gl_ratio['asc_gl_duration'][i] / len(asc_ind)
+
+            # ascent rate (m/s) #TODO changed to (m/sample)
+            max_depth_asc = depths[asc_ind].max()
+            gl_ratio['asc_rate'][i] = max_depth_asc / len(asc_ind)
 
         # mean pitch during the ascent phase(degrees)
         gl_ratio['asc_mean_pitch'][i] = numpy.mean(numpy.rad2deg(pitch_lf[asc_ind]))
 
-        # ascent rate (m/s) #TODO changed to (m/sample)
-        max_depth_asc = depths[asc_ind].max()
-        gl_ratio['asc_rate'][i] = max_depth_asc / len(asc_ind)
 
     return gl_ratio
 
