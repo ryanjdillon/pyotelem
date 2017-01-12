@@ -1,25 +1,5 @@
 
-def get_gl_mask(depths, fs_a, GL):
-    '''Get phase of subglides, depth at glide, duration, times'''
-    import numpy
-
-    import utils
-    t = numpy.arange(len(depths))/fs_a
-
-    #TODO make GL created as index numbers
-
-    # Accelerometer (orginally in addition to magnetometer method)
-    gl_ndur             = GL[:,1] - GL[:,0]
-    gl_T               = numpy.vstack([GL[:,0], gl_ndur]).T
-    gl_mask, _         = utils.event_on(gl_T, t)
-
-    #for start, end in (GL/fs_a).round().astype(int):
-    #    gl_mask[start:end] = True
-
-    return gl_mask
-
-
-def get_stroke_freq(x, fs_a, f, nperseg, peak_thresh, auto_select=False,
+def get_stroke_freq(Ax, Az, fs_a, f, nperseg, peak_thresh, auto_select=False,
         default_cutoff=True):
     '''Determine stroke frequency to use as a cutoff for filtering
 
@@ -27,8 +7,12 @@ def get_stroke_freq(x, fs_a, f, nperseg, peak_thresh, auto_select=False,
     ----
     cfg: dict
         parameters for configuration of body condition analysis
-    x: numpy.ndarray, shape (n,3)
-        tri-axial accelerometer data
+    Ax: numpy.ndarray, shape (n,)
+        x-axis accelermeter data (longitudinal)
+    ay: numpy.ndarray, shape (n,)
+        x-axis accelermeter data (lateral)
+    Az: numpy.ndarray, shape (n,)
+        z-axis accelermeter data (dorso-ventral)
     fs_a: float
         sampling frequency (i.e. number of samples per second)
     nperseg: int
@@ -115,8 +99,8 @@ def get_stroke_freq(x, fs_a, f, nperseg, peak_thresh, auto_select=False,
                           'further testing--implementation not active')
 
     # Axes to be used for determining `stroke_f`
-    stroke_axes = [(0,'x','dorsa-ventral'),
-                   (2,'z','lateral')]
+    stroke_axes = [(0,'x','dorsa-ventral', Ax),
+                   (2,'z','lateral', Az)]
 
     # Lists for appending values from each axis
     cutoff_all   = list()
@@ -124,13 +108,13 @@ def get_stroke_freq(x, fs_a, f, nperseg, peak_thresh, auto_select=False,
     f_all        = list()
 
     # Iterate over axes in `stroke_axes` list appending output to above lists
-    for i, i_alph, name in stroke_axes:
+    for i, i_alph, name, data in stroke_axes:
         # Auto calculate, else promter user for value after inspecting PSD plot
         if auto_select == True:
             cutoff, stroke_f = automatic_freq(x, fs_a, nperseg, peak_thresh)
         elif auto_select == False:
             title = 'PSD - {} axis (n={}), {}'.format(i_alph, i, name)
-            cutoff, stroke_f =  manual_freq(x[:,i], fs_a, nperseg, peak_thresh, title)
+            cutoff, stroke_f =  manual_freq(data, fs_a, nperseg, peak_thresh, title)
 
         # Append values for axis to list
         cutoff_all.append(cutoff)
@@ -150,22 +134,16 @@ def get_stroke_freq(x, fs_a, f, nperseg, peak_thresh, auto_select=False,
     return cutoff, stroke_f, f
 
 
-def get_stroke_glide_indices(A_g_hf_n, fs_a, n, J, t_max):
+def get_stroke_glide_indices(A_g_hf, fs_a, J, t_max):
     '''Get stroke and glide indices from high-pass accelerometer data
 
     Args
     ----
-    A_g_hf_n: 1-D ndarray
-       whale frame triaxial accelerometer matrix at sampling rate fs_a.
+    A_g_hf: 1-D ndarray
+       animal frame triaxial accelerometer matrix at sampling rate fs_a.
 
     fs_a: int
         number of acclerometer samples per second
-
-    n: int
-        fundamental axis of the acceleration signal.
-        1 for accelerations along the x axis, longitudinal axis.
-        2 for accelerations along the y axis, lateral axis.
-        3 for accelerations along the z axis, dorso-ventral axis.
 
     J: float
         magnitude threshold for detecting a fluke stroke in m/s2.  If J is not
@@ -200,41 +178,41 @@ def get_stroke_glide_indices(A_g_hf_n, fs_a, n, J, t_max):
     import utils_signal
 
     # Check if input array is 1-D
-    if A_g_hf_n.ndim > 1:
-        raise IndexError('A_g_hf_n multidimensional: Glide index determination '
+    if A_g_hf.ndim > 1:
+        raise IndexError('A_g_hf multidimensional: Glide index determination '
                          'requires 1-D acceleration array as input')
 
     # Convert t_max to number of samples
     n_max = t_max * fs_a
 
     # Find zero-crossing start/stops in pry(:,n), rotations around n axis.
-    zc = utils_signal.findzc(A_g_hf_n, J, n_max/2)
+    zc = utils_signal.findzc(A_g_hf, J, n_max/2)
 
     # find glides - any interval between zeros crossings greater than tmax
     ind = numpy.where(zc[1:, 0] - zc[0:-1, 1] > n_max)[0]
     gl_ind = numpy.vstack([zc[ind, 0] - 1, zc[ind + 1, 1] + 1]).T
 
     # Compute mean index position of glide, Only include sections with jerk < J
-    gl_c = numpy.round(numpy.mean(gl_ind, 1)).astype(int)
+    gl_mean_idx = numpy.round(numpy.mean(gl_ind, 1)).astype(int)
     gl_ind = numpy.round(gl_ind).astype(int)
 
-    for i in range(len(gl_c)):
-        col = range(gl_c[i], gl_ind[i, 0], - 1)
-        test = numpy.where(numpy.isnan(A_g_hf_n[col]))[0]
+    for i in range(len(gl_mean_idx)):
+        col = range(gl_mean_idx[i], gl_ind[i, 0], - 1)
+        test = numpy.where(numpy.isnan(A_g_hf[col]))[0]
         if test.size != 0:
-            gl_c[i]   = numpy.nan
+            gl_mean_idx[i]   = numpy.nan
             gl_ind[i,0] = numpy.nan
             gl_ind[i,1] = numpy.nan
         else:
-            over_J1 = numpy.where(abs(A_g_hf_n[col]) >= J)[0][0]
+            over_J1 = numpy.where(abs(A_g_hf[col]) >= J)[0][0]
 
-            gl_ind[i,0] = gl_c[i] - over_J1 + 1
+            gl_ind[i,0] = gl_mean_idx[i] - over_J1 + 1
 
-            col = range(gl_c[i], gl_ind[i, 1])
+            col = range(gl_mean_idx[i], gl_ind[i, 1])
 
-            over_J2 = numpy.where(abs(A_g_hf_n[col]) >= J)[0][0]
+            over_J2 = numpy.where(abs(A_g_hf[col]) >= J)[0][0]
 
-            gl_ind[i,1] = gl_c[i] + over_J2 - 1
+            gl_ind[i,1] = gl_mean_idx[i] + over_J2 - 1
 
     GL = gl_ind
     GL = GL[numpy.where(GL[:, 1] - GL[:, 0] > n_max / 2)[0], :]
@@ -266,7 +244,7 @@ def split_glides(n_samples, dur, fs_a, GL, min_dur=None):
 
     Returns
     -------
-    sgl_ind: numpy.ndarray, shape(n, 2)
+    SGL: numpy.ndarray, shape(n, 2)
         matrix containing the start time (first column) and end time(2nd
         column) of the generated subglides.All glides must have duration
         equal to the given dur value.Times are in seconds.
@@ -276,11 +254,11 @@ def split_glides(n_samples, dur, fs_a, GL, min_dur=None):
     `SUM`         removed
     `ngl`         renamed `n_sgl`
     `glinf`       renamed `gl_ind_diff`
-    `SGL`         renamed `sgl_ind`
+    `SGL`         renamed `SGL`
     `STARTGL`     renamed `sgl_start_ind`
     `ENDGL`       renamed `sgl_end_ind`
-    `startglide1` renamed `next_sgl_ind`
-    `endglide1`   renamed `next_sgl_ind`
+    `startglide1` renamed `next_SGL`
+    `endglide1`   renamed `next_SGL`
     `v`           renamed `sgl_start`
 
     Lucia Martina Martin Lopez (May 2016)
@@ -301,7 +279,7 @@ def split_glides(n_samples, dur, fs_a, GL, min_dur=None):
     gl_ind_diff = numpy.vstack((GL.T, GL[:, 1] - GL[:, 0])).T
 
     # Split all glides in GL
-    sgl_ind_started = False
+    SGL_started = False
     for i in range(len(GL)):
         gl_ndur = gl_ind_diff[i, 2]
 
@@ -324,29 +302,28 @@ def split_glides(n_samples, dur, fs_a, GL, min_dur=None):
             # Get start and end index positions for each sub-glide
             for k in range(len(sgl_start)):
 
-                # TODO round these to ints? or they are times...
                 # starting at original glide start...
                 # sgl_start_ind: add index increments of ndur+1 for next start idx
-                next_start_ind = gl_ind_diff[i, 0] + sgl_start[k]
+                next_start_ind = (gl_ind_diff[i, 0] + sgl_start[k]).astype(int)
 
                 # end_glide: add `ndur` to that to get ending idx
-                next_end_ind = next_start_ind + sgl_ndur[k]
+                next_end_ind = (next_start_ind + sgl_ndur[k]).astype(int)
 
                 # If first iteration, set equal to first set of indices
-                if sgl_ind_started == False:
+                if SGL_started == False:
                     sgl_start_ind = next_start_ind
                     sgl_end_ind   = next_end_ind
-                    sgl_ind_started = True
+                    SGL_started = True
                 else:
                     # Concat 1D arrays together, shape (n,)
                     sgl_start_ind = numpy.hstack((sgl_start_ind, next_start_ind))
                     sgl_end_ind   = numpy.hstack((sgl_end_ind, next_end_ind))
 
     # Stack and transpose indices into shape (n, 2)
-    sgl_ind = numpy.vstack((sgl_start_ind, sgl_end_ind)).T
+    SGL = numpy.vstack((sgl_start_ind, sgl_end_ind)).T
 
     # check that all subglides have a duration of `ndur` seconds
-    sgl_ndur = sgl_ind[:, 1] - sgl_ind[:, 0]
+    sgl_ndur = SGL[:, 1] - SGL[:, 0]
 
     # If subglide `min_ndur` set, make sure all above `min_ndur`, below `ndur`
     if min_dur:
@@ -357,182 +334,207 @@ def split_glides(n_samples, dur, fs_a, GL, min_dur=None):
 
     # Create sgl_mask
     sgl_mask = numpy.zeros(n_samples, dtype=bool)
-    for start, stop in sgl_ind:
+    for start, stop in SGL.astype(int):
         sgl_mask[start:stop] = True
 
-    return sgl_ind, sgl_mask
+    return SGL, sgl_mask
 
 
-def calc_glide_des_asc( depths, fs_a, pitch_lf, roll_lf, heading_lf, swim_speed,
-        D, phase, sgl_ind, pitch_lf_deg, temperature, Dsw):
+def calc_glide_des_asc(depths, pitch_lf, roll_lf, heading_lf, swim_speed,
+        dives, SGL, pitch_lf_deg, temperature, Dsw):
     '''Calculate glide ascent and descent summary data
 
     Args
     ----
-    sgl_ind: numpy.ndarray, shape (n,2)
+    SGL: numpy.ndarray, shape (n,2)
         start and end index positions for sub-glides
     '''
     import astropy.stats
     import numpy
     import pandas
 
-    keys = ['start_idx',
+    keys = [
+            'dive_phase',
+            'dive_id',
+            'dive_min_depth',
+            'dive_max_depth',
+            'dive_duration',
+            'start_idx',
             'stop_idx',
             'duration',
             'mean_depth',
-            'depth_change',
-            'mean_swimspeed',
+            'total_depth_change',
+            'abs_depth_change',
+            'mean_speed',
+            'total_speed_change',
             'mean_pitch',
             'mean_sin_pitch',
             'SD_pitch',
             'mean_temp',
             'mean_swdensity',
-            'mean_acceleration',
+            'mean_a',
             'R2_speed_vs_time',
             'SE_speed_vs_time',
-            'dive_phase',
-            'dive_number',
-            'dive_max_depth',
-            'dive_duration',
             'mean_pitch_circ',
             'pitch_concentration',
             'mean_roll_circ',
             'roll_concentration',
             'mean_heading_circ',
-            'heading_concentration',]
+            'heading_concentration',
+            ]
 
     # Create empty pandas dataframe for summary values
-    glide = pandas.DataFrame(index=range(len(sgl_ind)), columns=keys)
+    sgls = pandas.DataFrame(index=range(len(SGL)), columns=keys)
 
-    for i in range(len(sgl_ind)):
-        idx_start = int(round(sgl_ind[i,0]))
-        idx_end = int(round(sgl_ind[i,1]))
+    for i in range(len(SGL)):
+        start_idx = SGL[i,0]
+        stop_idx = SGL[i,1]
 
         # sub-glide start point in seconds
-        glide['start_idx'][i] = sgl_ind[i,0]
+        sgls['start_idx'][i] = start_idx
 
         # sub-glide end point in seconds
-        glide['stop_idx'][i] = sgl_ind[i,1]
+        sgls['stop_idx'][i] = stop_idx
 
         # sub-glide duration
-        glide['duration'][i] = sgl_ind[i,1] - sgl_ind[i,0]
+        sgls['duration'][i] = SGL[i,1] - SGL[i,0]
 
         # mean depth(m)during sub-glide
-        glide['mean_depth'][i] = numpy.mean(depths[idx_start:idx_end])
+        sgls['mean_depth'][i] = numpy.mean(depths[start_idx:stop_idx])
 
         # total depth(m)change during sub-glide
-        glide['depth_change'][i] = abs(depths[idx_start] - depths[idx_end])
+        sgl_depth_diffs = numpy.diff(depths[start_idx:stop_idx])
+        sgls['total_depth_change'][i] = numpy.sum(abs(sgl_depth_diffs))
+
+        # depth(m)change from start to end of sub-glide
+        sgls['abs_depth_change'][i] = abs(depths[start_idx] - depths[stop_idx])
 
         # mean swim speed during the sub-glide, only given if pitch>30 degrees
-        glide['mean_swimspeed'][i] = numpy.mean(swim_speed[idx_start:idx_end])
+        sgls['mean_speed'][i] = numpy.nanmean(swim_speed[start_idx:stop_idx])
+
+        # total speed change during sub-glide
+        sgl_speed_diffs = numpy.diff(swim_speed[start_idx:stop_idx])
+        sgls['total_speed_change'][i] = numpy.nansum(abs(sgl_speed_diffs))
 
         # mean pitch during the sub-glide
-        glide['mean_pitch'][i] = numpy.mean(pitch_lf_deg[idx_start:idx_end])
+        sgls['mean_pitch'][i] = numpy.mean(pitch_lf_deg[start_idx:stop_idx])
 
         # mean sin pitch during the sub-glide
-        glide['mean_sin_pitch'][i] = numpy.sin(numpy.mean(pitch_lf_deg[idx_start:idx_end]))
+        sgls['mean_sin_pitch'][i] = numpy.sin(numpy.mean(pitch_lf_deg[start_idx:stop_idx]))
 
         # SD of pitch during the sub-glide
         # TODO just use original radian array, not deg
         #      make sure "original" is radians ;)
-        glide['SD_pitch'][i] = numpy.std(pitch_lf_deg[idx_start:idx_end]) * 180 / numpy.pi
+        sgls['SD_pitch'][i] = numpy.std(pitch_lf_deg[start_idx:stop_idx]) * 180 / numpy.pi
 
         # mean temperature during the sub-glide
-        glide['mean_temp'][i] = numpy.mean(temperature[idx_start:idx_end])
+        sgls['mean_temp'][i] = numpy.mean(temperature[start_idx:stop_idx])
 
         # mean seawater density (kg/m^3) during the sub-glide
-        glide['mean_swdensity'][i] = numpy.mean(Dsw[idx_start:idx_end])
+        sgls['mean_swdensity'][i] = numpy.mean(Dsw[start_idx:stop_idx])
 
         try:
-            # TODO this will always go to except, need to test
-            xpoly = numpy.arange(idx_start, idx_end)
-            ypoly = swim_speed[xpoly]
+            # Perform linear regression on subglide data subset
+            xpoly = numpy.arange(start_idx, stop_idx).astype(int)
+            ypoly = swim_speed[start_idx:stop_idx]
 
-            B, BINT, R, RINT, STATS = regress(ypoly, [xpoly,
-                                                      numpy.ones(len(ypoly), 1)])
+            import scipy.stats
+
+            # slope, intercept, r-value, p-value, standard error
+            m, c, r, p, std_err = scipy.stats.linregress(xpoly, ypoly)
 
             # mean acceleration during the sub-glide
-            glide['mean_acceleration'][i] = B[0]
+            sgls['mean_a'][i] = m
 
             # R2-value for the regression swim speed vs. time during the sub-glide
-            glide['R2_speed_vs_time'][i] = STATS[0]
+            sgls['R2_speed_vs_time'][i] = r**2
 
             # SE of the gradient for the regression swim speed vs. time during the
             # sub-glide
-            glide['SE_speed_vs_time'][i] = STATS[3]
+            sgls['SE_speed_vs_time'][i] = std_err
 
         except:
 
             # mean acceleration during the sub-glide
-            glide['mean_acceleration'][i] = numpy.nan
+            sgls['mean_a'][i] = numpy.nan
 
             # R2-value for the regression swim speed vs. time during the sub-glide
-            glide['R2_speed_vs_time'][i] = numpy.nan
+            sgls['R2_speed_vs_time'][i] = numpy.nan
 
             # SE of the gradient for the regression swim speed vs. time during the
             # sub-glide
-            glide['SE_speed_vs_time'][i] = numpy.nan
+            sgls['SE_speed_vs_time'][i] = numpy.nan
 
 
+        # TODO remove?
         # Dive phase:0 bottom, -1 descent, 1 ascent, NaN not dive phase
-        sumphase = sum(phase[idx_start:idx_end])
-        sp = numpy.nan
-        if sumphase < 0:
-            sp = -1
-        elif sumphase == 0:
-            sp = 0
-        elif sumphase > 0:
-            sp = 1
-        glide['dive_phase'][i] = sp
+        #sumphase = sum(phase[start_idx:stop_idx])
+        #sp = numpy.nan
+        #if sumphase < 0:
+        #    sp = -1
+        #elif sumphase == 0:
+        #    sp = 0
+        #elif sumphase > 0:
+        #    sp = 1
+        sgl_signs = numpy.sign(sgl_depth_diffs)
+        if all(sgl_signs == -1):
+            sgls['dive_phase'][i] = 'descent'
+        elif all(sgl_signs == 1):
+            sgls['dive_phase'][i] = 'ascent'
+        elif any(sgl_signs == -1) & any(sgl_signs == 1):
+            sgls['dive_phase'][i] = 'mixed'
 
-        # TODO eliminate D, too many random tables
-        D_ind = numpy.where((D[: , 0]*fs_a < idx_start) & (D[: , 1]*fs_a > idx_end))[0]
+        # Get indices of dive in which glide occured
+        dive_ind = numpy.where((dives['start_idx'] < start_idx) & \
+                               (dives['stop_idx'] > stop_idx))[0]
 
-        if D_ind.size == 0:
-            Dinf = numpy.zeros(D.shape[1])
-            Dinf[:] = numpy.nan
+        # TODO Hokey way of pulling the information from first column of dives
+        if dive_ind.size == 0:
+            dive_inf = pandas.DataFrame.copy(dives.iloc[0])
+            dive_inf[:] = numpy.nan
         else:
-            Dinf = D[D_ind, :][0]
+            dive_inf = dives.iloc[dive_ind].iloc[0]
 
         # Dive number in which the sub-glide recorded
-        glide['dive_number'][i] = Dinf[6]
+        sgls['dive_id'][i] = dive_inf['dive_id']
+
+        # Minimum dive depth (m) of the dive
+        sgls['dive_min_depth'][i] = dive_inf['depth_min']
 
         # Maximum dive depth (m) of the dive
-        glide['dive_max_depth'][i] = Dinf[5]
+        sgls['dive_max_depth'][i] = dive_inf['depth_max']
 
         # Dive duration (s) of the dive
-        glide['dive_duration'][i] = Dinf[2]
+        sgls['dive_duration'][i] = dive_inf['dive_dur']
 
         # Mean pitch(deg) calculated using circular statistics
-        glide['mean_pitch_circ'][i] = astropy.stats.circmean(pitch_lf[idx_start:idx_end])
+        sgls['mean_pitch_circ'][i] = astropy.stats.circmean(pitch_lf[start_idx:stop_idx])
 
         # Measure of concentration (r) of pitch during the sub-glide (i.e. 0 for
         # random direction, 1 for unidirectional)
-        glide['pitch_concentration'][i] = 1 - astropy.stats.circvar(pitch_lf[idx_start:idx_end])
+        sgls['pitch_concentration'][i] = 1 - astropy.stats.circvar(pitch_lf[start_idx:stop_idx])
 
         # Mean roll (deg) calculated using circular statistics
-        glide['mean_roll_circ'][i] = astropy.stats.circmean(roll_lf[idx_start:idx_end])
+        sgls['mean_roll_circ'][i] = astropy.stats.circmean(roll_lf[start_idx:stop_idx])
 
         # Measure of concentration (r) of roll during the sub-glide
-        glide['roll_concentration'][i] = 1 - astropy.stats.circvar(roll_lf[idx_start:idx_end])
+        sgls['roll_concentration'][i] = 1 - astropy.stats.circvar(roll_lf[start_idx:stop_idx])
 
         # Mean heading (deg) calculated using circular statistics
-        glide['mean_heading_circ'][i] = astropy.stats.circmean(heading_lf[idx_start:idx_end])
+        sgls['mean_heading_circ'][i] = astropy.stats.circmean(heading_lf[start_idx:stop_idx])
 
         # Measure of concentration (r) of heading during the sub-glide
-        glide['heading_concentration'][i] = 1 - astropy.stats.circvar(heading_lf[idx_start:idx_end])
+        sgls['heading_concentration'][i] = 1 - astropy.stats.circvar(heading_lf[start_idx:stop_idx])
 
-    return glide
+    return sgls
 
 
-def calc_glide_ratios(dive_ind, des, asc, gl_mask, depths, pitch_lf):
+def calc_glide_ratios(dives, des, asc, glide_mask, depths, pitch_lf):
     import numpy
     import pandas
 
-    # TODO gl_ratio as numpy record array
-    gl_ratio = numpy.zeros((dive_ind.shape[0], 10))
-
-    keys = ['des_duration',
+    # Create empty pandas dataframe for storing data, init'd with nans
+    cols = ['des_duration',
             'des_gl_duration',
             'des_gl_ratio',
             'des_mean_pitch',
@@ -543,20 +545,22 @@ def calc_glide_ratios(dive_ind, des, asc, gl_mask, depths, pitch_lf):
             'asc_mean_pitch',
             'asc_rate',]
 
-    gl_ratio = pandas.DataFrame(index=range(len(dive_ind)), columns=keys)
+    gl_ratio = pandas.DataFrame(index=range(len(dives)), columns=cols)
 
-    # For each dive with start/stop indices in dive_ind
-    for i in range(len(dive_ind)):
+    # For each dive with start/stop indices in `dives`
+    for i in range(len(dives)):
         # Get indices for descent and ascent phase of dive `i`
-        des_ind = numpy.where(des[dive_ind[i,0]:dive_ind[i,1]])[0]
-        asc_ind = numpy.where(asc[dive_ind[i,0]:dive_ind[i,1]])[0]
+        start_idx = dives['start_idx'][i]
+        stop_idx  = dives['stop_idx'][i]
+        des_ind = numpy.where(des[start_idx:stop_idx])[0]
+        asc_ind = numpy.where(asc[start_idx:stop_idx])[0]
 
         # DESCENT
         # total duration of the descet phase (s)
         gl_ratio['des_duration'][i] = len(des_ind)
 
         # total glide duration during the descet phase (s)
-        des_glides = numpy.where(gl_mask[des_ind])[0]
+        des_glides = numpy.where(glide_mask[des_ind])[0]
         gl_ratio['des_gl_duration'][i] = len(des_glides)
 
         if len(des_ind) == 0:
@@ -579,7 +583,7 @@ def calc_glide_ratios(dive_ind, des, asc, gl_mask, depths, pitch_lf):
         gl_ratio['asc_duration'][i] = len(asc_ind)
 
         # total glide duration during the ascent phase (s)
-        asc_glides = numpy.where(gl_mask[asc_ind])[0]
+        asc_glides = numpy.where(glide_mask[asc_ind])[0]
         gl_ratio['asc_gl_duration'][i] = len(asc_glides)
 
         if len(asc_ind) == 0:
@@ -596,6 +600,4 @@ def calc_glide_ratios(dive_ind, des, asc, gl_mask, depths, pitch_lf):
         # mean pitch during the ascent phase(degrees)
         gl_ratio['asc_mean_pitch'][i] = numpy.mean(numpy.rad2deg(pitch_lf[asc_ind]))
 
-
     return gl_ratio
-
