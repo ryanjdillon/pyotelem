@@ -1,81 +1,61 @@
 
-def estimate_seawater_density(DTS, D):
+def get_SST(datetimes, lons, lats):
+    #import planetos
+
+    #SST = retrieve_SST_from_somewhere(datetimes, lons.min(), lons.max(),
+    #                                             lats.min(), lats.max())
+    SST = None
+
+    return SST
+
+def estimate_seawater_density(depths, depth_ctd, temp_ctd, sali_ctd):
     '''Estimate seawater density
 
     From body condition script
     '''
     import utils_sewater
 
-    # Seawater density estimation
-    DPT = DTS[:, 0] # Pressure
-    TMP = DTS[:, 1] # Temperature
-    SL  = DTS[:, 2] # Salinity
+    tsd = SWdensityFromCTD(depth_ctd, temp_ctd, sali_ctd)
 
-    SWdensity, depCTD = SWdensityFromCTD(DPT, TMP, SL, D)
+    # TODO handle case where depth greater than CTD max, return last value/NaN
+    densities = tsd['density'][depths.round().astype(int)]
 
-    Dsw = EstimateDsw(SWdensity, depCTD, depths)
-
-    return Dsw
+    return tsd, densities
 
 
-def EstimateDsw(SWdensity, depCTD, p):
-    '''Estimate seawater density from CTD measurement
-
-    Args
-    ----
-    SWdensity: seawater density from CTD measurement
-    depCTD: CTD's depth data where SWdensity was recorded
-    p: animal's depth data
-
-    Returns
-    -------
-    Dsw: density of seawater
-    '''
-    return interp1(depCDT, SWdensity, p)
-
-
-def SWdensityFromCTD(DPT, TMP, SL, D):
+def SWdensityFromCTD(depth_ctd, temp_ctd, sali_ctd, duplicates='last'):
     '''Calculate seawater density at CTD depth'''
     import numpy
+    import pandas
 
     import utils
 
-    new_depth = range(max(DPT))
+    # Create empty data frame incremented by whole meters to max CTD depth
+    columns = ['temperature', 'salinity', 'density']
+    n_samples = numpy.ceil(depth_ctd.max()).astype(int)
+    tsd = pandas.DataFrame(index=range(n_samples), columns=columns)
 
-    temp = numpy.zeros(len(new_depth))
-    sali = numpy.zeros(len(new_depth))
-    temp[:] = numpy.nan
-    sali[:] = numpy.nan
+    # Assign temperature and salinity for each rounded ctd depth
+    depths = depth_ctd.round().astype(int)
+    for d in numpy.unique(depths):
+        # Use last or first occurance of depth/value pairs
+        if duplicates == 'last':
+            idx = numpy.where(depths == d)[0][-1]
+        elif duplicates == 'first':
+            idx = numpy.where(depths == d)[0][0]
 
-    temp[round(DPT)] = TMP
-    sali[round(DPT)] = SL
+        # Fill temperature and salinity at measured depths, rounded to whole meter
+        tsd['temperature'][d] = temp_ctd[idx]
+        tsd['salinity'][d]    = sali_ctd[idx]
 
-    # linear interpret between the NaNs
-    temp = utils.fixgaps(temp)
-    sali = utils.fixgaps(sali)
-    dens = sw_dens0(sali, temp)
+    # Linearly interpolate temperature and salinity measurements
+    tsd = tsd.astype(float)
+    tsd.interpolate('linear', inplace=True)
 
-    # TODO remove?
-    plt.plot(dens, new_depth)
-    ylabel('Depth (m)')
-    xlabel('Density (kg/m^3)')
+    # Cacluate seawater density
+    tsd['density'] = sw_dens0(tsd['salinity'][:], tsd['temperature'][:])
 
-    if max(D[:, 6]) > max(DPT):
-        new_depth2 = range(0, max(D[:, 6]))
-        sali = numpy.hstack(sali, sali[-1] * numpy.ones((len(new_depth2)-len(new_depth))))
-        temp = numpy.hstack(temp, temp[-1] * numpy.ones((len(new_depth2)-len(new_depth))))
-
-        dens = sw_dens0(sali, temp)
-
-        # TODO remove?
-        plt.plot(dens, new_depth2)
-        ylabel('Depth (m)')
-        xlabel('Density (kg/m^3)')
-
-    depth_CTD = numpy.copy(new_depth2)
-    SWdensity = numpy.copy(dens)
-
-    return SWdensity, depth_CTD
+    return tsd
 
 
 def sw_dens0(S, T):
@@ -107,11 +87,9 @@ def sw_dens0(S, T):
     International one-atmosphere equation of state of seawater.
     Deep-Sea Res. 1981. Vol28A(6) pp625-629.
     '''
+    import numpy
 
-    mS, nS = S.shape
-    mT, nT = T.shape
-
-    if (mS != mT) | (nS != nT):
+    if S.shape != T.shape:
         raise SystemError('sw_dens0.py: S,T inputs must have the same '
                           'dimensions')
     T68 = T * 1.00024
@@ -130,8 +108,8 @@ def sw_dens0(S, T):
     d0 =  0.00048314
 
     dens = sw_smow(T) + \
-           ((b0 + ((b1 + ((b2 + ((b3 + dot(b4, T68)) * T68)) * T68)), T68)) * S) + \
-           (((c0 + multiply((c1 + (c2 * T68)) * T68)) * S) * numpy.sqrt(S)) + \
+           ((b0 + ((b1 + ((b2 + ((b3 + (b4 * T68)) * T68)) * T68)) * T68)) * S) + \
+           (((c0 + ((c1 + (c2 * T68)) * T68)) * S) * numpy.sqrt(S)) + \
            (d0 * S**2)
 
     return dens
@@ -166,15 +144,60 @@ def sw_smow(T):
 
     # DEFINE CONSTANTS
     a0 = 999.842594
-    a1 =   0.06793952
-    a2 =  -0.00909529
-    a3 =   0.0001001685
-    a4 =  -1.120083e-06
-    a5 =   6.536332e-09
+    a1 =   6.793952e-2
+    a2 =  -9.095290e-3
+    a3 =   1.001685e-4
+    a4 =  -1.120083e-6
+    a5 =   6.536332e-9
 
     T68 = T * 1.00024
 
     dens = a0 + \
-           ((a1 + ((a2 + ((a3 + ((a4 + (a5 * T68)) * T68)), T68)) * T68)) * T68)
+           ((a1 + ((a2 + ((a3 + ((a4 + (a5 * T68)) * T68)) * T68)) * T68)) * T68)
 
     return dens
+
+
+#def SWdensityFromCTD(depth_ctd, temp_ctd, sali_ctd, depths):
+#    '''Calculate seawater density at CTD depth'''
+#    import numpy
+#
+#    import utils_dtag
+#
+#    new_depth = range(max(depth_ctd))
+#
+#    temp = numpy.zeros(len(new_depth))
+#    sali = numpy.zeros(len(new_depth))
+#    temp[:] = numpy.nan
+#    sali[:] = numpy.nan
+#
+#    temp[round(depth_ctd)] = temp_ctd
+#    sali[round(depth_ctd)] = sali_ctd
+#
+#    # linear interpret between the NaNs
+#    temp = utils_dtag.fixgaps(temp)
+#    sali = utils_dtag.fixgaps(sali)
+#    dens = sw_dens0(sali, temp)
+#
+#    ## TODO remove?
+#    #plt.plot(dens, new_depth)
+#    #ylabel('Depth (m)')
+#    #xlabel('Density (kg/m^3)')
+#
+#    if max(depths[:, 6]) > max(depth_ctd):
+#        new_depth2 = range(0, max(depths[:, 6]))
+#        n_depth_diff = len(new_depth2)-len(new_depth)
+#        sali = numpy.hstack([sali, sali[-1] * numpy.ones(n_depth_diff)])
+#        temp = numpy.hstack([temp, temp[-1] * numpy.ones(n_depth_diff)])
+#
+#        dens = sw_dens0(sali, temp)
+#
+#        ## TODO remove?
+#        #plt.plot(dens, new_depth2)
+#        #ylabel('Depth (m)')
+#        #xlabel('Density (kg/m^3)')
+#
+#    depth_CTD = numpy.copy(new_depth2)
+#    SWdensity = numpy.copy(dens)
+#
+#    return SWdensity, depth_CTD
