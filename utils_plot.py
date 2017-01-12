@@ -12,6 +12,9 @@ colors = seaborn.color_palette()
 linewidth = 0.5
 
 
+# Utils
+#------------------------------------------------------------------------------
+
 def merge_limits(axes, xlim=True, ylim=True):
     '''Set maximum and minimum limits from list of axis objects to each axis
 
@@ -57,13 +60,14 @@ def plot_noncontiguous(ax, data, ind, color=colors[0], label=''):
 
     def slice_with_nans(data, ind):
         '''Insert nans in indices and data where indices non-contiguous'''
+        import copy
         import numpy
 
         ind_nan          = numpy.zeros(len(data))
         ind_nan[:]       = numpy.nan
 
         # prevent ind from overwrite with deepcopy
-        ind_nan[ind]     = numpy.copy(ind)
+        ind_nan[ind]     = copy.deepcopy(ind)
         ind_nan          = ind_nan[ind[0]:ind[-1]]
 
         # prevent data from overwrite with deepcopy
@@ -77,6 +81,30 @@ def plot_noncontiguous(ax, data, ind, color=colors[0], label=''):
 
     return ax
 
+
+def plot_shade_mask(ax, mask):
+    '''Shade across x values where boolean mask is `True`'''
+    ymin, ymax = ax.get_ylim()
+    ax.fill_between(range(len(mask)), ymin, ymax, where=mask,
+                    facecolor='gray', alpha=0.5)
+    return ax
+
+
+# Signal
+#------------------------------------------------------------------------------
+
+#def plot_cutoff_peak(f_x, S_x, f_x, S_z, peak_idx, idx_f, min_f):
+#    '''Plot cuttoff frequencies, axes 0 & 2'''
+#
+#    b = plt.plot(f, S, 'b', label='')
+#    r = plt.plot(f, S, 'r')
+#    #legend([b, r], 'HPF acc x axis (surge)', 'HPF acc z axis (heave)')
+#
+#    plt.plot(f[peak_idx], S[peak_idx], 'o', markersize=10, linewidth=2)
+#    plt.plot([f[idx_f], f[idx_f]],[min(S[:]), min_f],'--', linewidth=2)
+#    # ['f = '.format(float(round(f[idx_f]*100)/100))],
+#
+#    return None
 
 def plot_lf_hf(x, xlf, xhf, title=''):
     '''Plot original signal, low-pass filtered, and high-pass filtered signals
@@ -105,74 +133,25 @@ def plot_lf_hf(x, xlf, xhf, title=''):
     return None
 
 
-def plot_dives(dv0, dv1, p, dp, t_on, t_off):
-    '''Plots depths and delta depths with dive start stop markers'''
-
-    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
-
-    x0   = t_on[dv0:dv1] - t_on[dv0]
-    x1   = t_off[dv0:dv1] - t_on[dv0]
-
-    # Extract start end depths
-    y0_p = p[t_on[dv0:dv1]]
-    y1_p = p[t_off[dv0:dv1]]
-
-    # Extract start end delta depths
-    y0_dp = dp[t_on[dv0:dv1]]
-    y1_dp = dp[t_off[dv0:dv1]]
-
-    start = t_on[dv0]
-    stop  = t_off[dv1]
-
-    ax1.title.set_text('Dives depths')
-    ax1.plot(range(len(p[start:stop])), p[start:stop])
-    ax1.scatter(x0, y0_p, label='start')
-    ax1.scatter(x1, y1_p, label='stop')
-    ax1.set_ylabel('depth (m)')
-
-    ax1.title.set_text('Depth rate of change')
-    ax2.plot(range(len(dp[start:stop])), dp[start:stop])
-    ax2.scatter(x0, y0_dp, label='start')
-    ax2.scatter(x1, y1_dp, label='stop')
-    ax2.set_ylabel('depth (dm/t)')
-    ax2.set_xlabel('sample')
-
-    for ax in [ax1, ax2]:
-        ax.legend(loc='upper right')
-        ax.set_xlim([-50, len(dp[start:stop])+50])
-
-    plt.show()
-
-    return None
-
-
-def plot_dives_pitch(depths, dive_mask, des, asc, pitch, pitch_lf):
-    import copy
+def plot_acc_pry_depth(A_g_lf, A_g_hf, pry_deg, depths, glide_mask=None):
     import numpy
 
-    fig, (ax1, ax2) = plt.subplots(2,1, sharex=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(3,1, sharex=True)
 
-    des_ind = numpy.where(dive_mask & des)[0]
-    asc_ind = numpy.where(dive_mask & asc)[0]
+    ax1.title.set_text('acceleromter')
+    ax1.plot(range(len(A_g_lf)), A_g_lf, color=colors[0])
 
-    ax1.title.set_text('Dive descents and ascents')
-    ax1 = plot_noncontiguous(ax1, depths, des_ind, colors[0], 'descents')
-    ax1 = plot_noncontiguous(ax1, depths, asc_ind, colors[1], 'ascents')
+    ax1.title.set_text('PRH')
+    ax2.plot(range(len(pry_deg)), pry_deg, color=colors[1])
 
-    ax1.legend(loc='upper right')
-    ax1.invert_yaxis()
-    ax1.yaxis.label.set_text('depth (m)')
-    ax1.xaxis.label.set_text('samples')
+    ax3.title.set_text('depth')
+    ax3.plot(range(len(depths)), depths, color=colors[2])
+    ax3.invert_yaxis()
 
-
-    ax2.title.set_text('Pitch and Low-pass filtered pitch')
-    ax2.plot(range(len(pitch)), pitch, color=colors[2], linewidth=linewidth,
-            label='pitch')
-    ax2.plot(range(len(pitch_lf)), pitch_lf, color=colors[3],
-            linewidth=linewidth, label='pitch filtered')
-    ax2.legend(loc='upper right')
-    ax2.yaxis.label.set_text('Radians')
-    ax2.yaxis.label.set_text('Samples')
+    if glide_mask is not None:
+        ax1 = plot_shade_mask(ax1, glide_mask)
+        ax2 = plot_shade_mask(ax2, glide_mask)
+        ax3 = plot_shade_mask(ax3, glide_mask)
 
     plt.show()
 
@@ -186,7 +165,7 @@ def plot_welch_peaks(f, S, peak_loc=None, title=''):
     plt.xlabel('Fequency (Hz)')
     plt.ylabel('"Power" (g**2 Hz**−1)')
 
-    if peak_loc != None:
+    if peak_loc is not None:
         plt.scatter(f[peak_loc], S[peak_loc], label='peaks')
         plt.legend(loc='upper right')
 
@@ -278,6 +257,83 @@ def plot_data_filter(data, data_f, b, a, cutoff, fs):
     return None
 
 
+# ACCELEROMETER AND DIVES
+#------------------------------------------------------------------------------
+
+def plot_dives(dv0, dv1, p, dp, t_on, t_off):
+    '''Plots depths and delta depths with dive start stop markers'''
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+
+    x0   = t_on[dv0:dv1] - t_on[dv0]
+    x1   = t_off[dv0:dv1] - t_on[dv0]
+
+    # Extract start end depths
+    y0_p = p[t_on[dv0:dv1]]
+    y1_p = p[t_off[dv0:dv1]]
+
+    # Extract start end delta depths
+    y0_dp = dp[t_on[dv0:dv1]]
+    y1_dp = dp[t_off[dv0:dv1]]
+
+    start = t_on[dv0]
+    stop  = t_off[dv1]
+
+    ax1.title.set_text('Dives depths')
+    ax1.plot(range(len(p[start:stop])), p[start:stop])
+    ax1.scatter(x0, y0_p, label='start')
+    ax1.scatter(x1, y1_p, label='stop')
+    ax1.set_ylabel('depth (m)')
+
+    ax1.title.set_text('Depth rate of change')
+    ax2.plot(range(len(dp[start:stop])), dp[start:stop])
+    ax2.scatter(x0, y0_dp, label='start')
+    ax2.scatter(x1, y1_dp, label='stop')
+    ax2.set_ylabel('depth (dm/t)')
+    ax2.set_xlabel('sample')
+
+    for ax in [ax1, ax2]:
+        ax.legend(loc='upper right')
+        ax.set_xlim([-50, len(dp[start:stop])+50])
+
+    plt.show()
+
+    return None
+
+
+def plot_dives_pitch(depths, dive_mask, des, asc, pitch, pitch_lf):
+    import copy
+    import numpy
+
+    fig, (ax1, ax2) = plt.subplots(2,1, sharex=True)
+
+    des_ind = numpy.where(dive_mask & des)[0]
+    asc_ind = numpy.where(dive_mask & asc)[0]
+
+    ax1.title.set_text('Dive descents and ascents')
+    ax1 = plot_noncontiguous(ax1, depths, des_ind, colors[0], 'descents')
+    ax1 = plot_noncontiguous(ax1, depths, asc_ind, colors[1], 'ascents')
+
+    ax1.legend(loc='upper right')
+    ax1.invert_yaxis()
+    ax1.yaxis.label.set_text('depth (m)')
+    ax1.xaxis.label.set_text('samples')
+
+
+    ax2.title.set_text('Pitch and Low-pass filtered pitch')
+    ax2.plot(range(len(pitch)), pitch, color=colors[2], linewidth=linewidth,
+            label='pitch')
+    ax2.plot(range(len(pitch_lf)), pitch_lf, color=colors[3],
+            linewidth=linewidth, label='pitch filtered')
+    ax2.legend(loc='upper right')
+    ax2.yaxis.label.set_text('Radians')
+    ax2.yaxis.label.set_text('Samples')
+
+    plt.show()
+
+    return None
+
+
 def plot_depth_descent_ascent(depths, dive_mask, des, asc):
     '''Plot depth data for whole deployment, descents, and ascents
     '''
@@ -306,7 +362,44 @@ def plot_depth_descent_ascent(depths, dive_mask, des, asc):
     return None
 
 
-def plot_triaxial_descent_ascent(A, des, asc):#, fs_a
+def plot_triaxial_depths_speed(data):
+    '''Plot triaxial accelerometer data for whole deployment, descents, and
+    ascents
+
+    Only x and z axes are ploted since these are associated with stroking
+    '''
+    import numpy
+
+    # TODO return to multiple inputs rather than dataframe
+
+    fig, axes = plt.subplots(3, 3, sharex='col', sharey='row')
+    ((ax1, ax4, ax7), (ax2, ax5, ax8), (ax3, ax6, ax9)) = axes
+
+    # Create mask of all True for length of depths
+    all_ind = numpy.arange(0, len(data), dtype=int)
+
+    cols = [('x', data['Ax_g'], [ax1, ax2, ax3]),
+            ('y', data['Ay_g'], [ax4, ax5, ax6]),
+            ('z', data['Az_g'], [ax7, ax8, ax9])]
+
+    for label, y, axes in cols:
+        axes[0].title.set_text('Accelerometer {}-axis'.format(label))
+        axes[0].plot(range(len(y)), y, color=colors[0],
+                     linewidth=linewidth, label='x')
+
+        axes[1].title.set_text('Depths')
+        axes[1] = plot_noncontiguous(axes[1], data['depth'], all_ind, color=colors[1])
+        axes[1].invert_yaxis()
+
+        axes[2] = plot_noncontiguous(axes[2], data['propeller'], all_ind,
+                color=colors[2], label='propeller')
+
+    plt.show()
+
+    return None
+
+
+def plot_triaxial_descent_ascent(Ax, Az, des, asc):
     '''Plot triaxial accelerometer data for whole deployment, descents, and
     ascents
 
@@ -320,32 +413,28 @@ def plot_triaxial_descent_ascent(A, des, asc):#, fs_a
     des_ind = numpy.where(des)[0]
     asc_ind = numpy.where(asc)[0]
 
-    # x axis
-    x = A[:,0]
-    ax1.title.set_text('Whole x')
-    ax1.plot(range(len(x)), x, color=colors[0], linewidth=linewidth, label='x')
+    cols = [('x', Ax, [ax1, ax2]),
+            ('z', Az, [ax3, ax4])]
 
-    ax2.title.set_text('Descents & Ascents x')
-    ax2 = plot_noncontiguous(ax2, x, des_ind, color=colors[1], label='descents')
-    ax2 = plot_noncontiguous(ax2, x, asc_ind, color=colors[2], label='ascents')
-    ax2.legend(loc='upper right')
+    for label, data, axes in cols:
+        axes[0].title.set_text('Whole {}'.format(label))
+        axes[0].plot(range(len(data)), data, color=colors[0],
+                     linewidth=linewidth, label='{}'.format(label))
 
-    # z axis
-    z = A[:,2]
-    ax3.title.set_text('Whole z')
-    ax3.plot(range(len(z)), z, color=colors[0], linewidth=linewidth, label='z')
-
-    ax4.title.set_text('Descents & Ascents z')
-    ax4 = plot_noncontiguous(ax4, z, des_ind, color=colors[1], label='descents')
-    ax4 = plot_noncontiguous(ax4, z, asc_ind, color=colors[2], label='ascents')
-    ax4.legend(loc='upper right')
-
-    merge_limits((ax1, ax2, ax3, ax4), xlim=True, ylim=True)
+        axes[1].title.set_text('Descents & Ascents {}'.format(label))
+        axes[1] = plot_noncontiguous(axes[1], data, des_ind, color=colors[1],
+                                     label='descents')
+        axes[1] = plot_noncontiguous(axes[1], data, asc_ind, color=colors[2],
+                                     label='ascents')
+        axes[1].legend(loc='upper right')
 
     plt.show()
 
     return None
 
+
+# Pitch, Roll, Heading
+#------------------------------------------------------------------------------
 
 def plot_prh_des_asc(p, r, h, asc, des):
     import matplotlib.pyplot as plt
@@ -415,11 +504,12 @@ def plot_prh_filtered(p, r, h, p_lf, r_lf, h_lf):
     return None
 
 
-def plot_swim_speed(swim_speed, ind):
+def plot_swim_speed(exp_ind, swim_speed):
 
     fig, ax = plt.subplots()
 
-    ax.plot(ind, swim_speed, linewidth=linewidth, label='speed')
+    ax.title.set_text('Swim speed from depth change and pitch angle (m/s^2')
+    ax.plot(exp_ind, swim_speed, linewidth=linewidth, label='speed')
     ax.set_ylim(0, max(swim_speed))
     ax.legend(loc='upper right')
 
@@ -458,69 +548,16 @@ def plot_get_fluke(depths, pitch, A_g_hf, dive_ind, nn, fs):
     return None
 
 
-def plot_hf_acc_histo(Ahf, fs_a, stroke_f, DES, ASC):
-    '''Get user selection of J from plot of histograms of high-pass filtered
-    accelerometry
+# Glides
+#------------------------------------------------------------------------------
 
-    Args
-    ----
-    Ahf: numpy.ndarray, shape(n,3)
-        triaxial accelerometer data: index 1=x, 2=y, 3=z
-    fs_a: int
-        sampling rate (Hz)
-    stroke_f: float
-        stroke frequency (Hz)
-
-    Returns
-    -------
-    J: float
-        magnitude threshold for detecting a fluke stroke in m/s2.  If J is not
-        given, fluke strokes will not be located but the rotations signal (pry)
-        will be computed.
-    '''
-    import matplotlib.pyplot as plt
+def plot_glide_depths(depths, data_sgl_mask):
+    '''Plot depth at glides'''
     import numpy
 
-    import utils
-
-    def plot_acc_distribution(ax, A_des, A_asc, title=''):
-        # Group all descent and ascent data together for binning strokes
-        TOTAL = numpy.abs(numpy.hstack([A_asc, A_des]).T)
-
-        # TODO from .m code
-        # Split into bins of 2*number of samples per stroke
-        #Y, yb = utils.buffer(TOTAL, 2 * round(1/stroke_f*fs_a))
-        #Ymax = numpy.sort(numpy.max(Y, axis=0))
-        #ax.hist(numpy.max(Y, axis=0), 100)
-
-        # Plot distribution of all acceleration samples
-        Ymax = numpy.sort(TOTAL)
-        ax.plot(range(len(Ymax)), Ymax)
-
-        ax.set_ylim(0, numpy.max(Ymax))
-        ax.title.set_text(title)
-
-        return ax
-
-    # Make histograms to review and select J from
-    fig, (ax1, ax2) = plt.subplots(2, 1)
-
-    # HPF x acc. ascent and descent
-    ax1 = plot_acc_distribution(ax1, Ahf[ASC, 0], Ahf[DES, 0], title='hpf-x acc')
-
-    # HPF y acc. ascent and descent
-    ax2 = plot_acc_distribution(ax2, Ahf[ASC, 2], Ahf[DES, 2], title='hpf-z acc')
-
-    plt.show()
-
-    return None
-
-
-def plot_glide_depths(depths, sgl_mask):
-    '''Plot depth at glides'''
     fig, ax = plt.subplots()
 
-    ax = plot_noncontiguous(ax, depths, numpy.where(sgl_mask)[0])
+    ax = plot_noncontiguous(ax, depths, numpy.where(data_sgl_mask)[0])
     ax.invert_yaxis()
 
     plt.show()
@@ -528,17 +565,60 @@ def plot_glide_depths(depths, sgl_mask):
     return None
 
 
-#def plot_cutoff_peak(f_x, S_x, f_x, S_z, peak_idx, idx_f, min_f):
-#    '''Plot cuttoff frequencies, axes 0 & 2'''
-#
-#    b = plt.plot(f, S, 'b', label='')
-#    r = plt.plot(f, S, 'r')
-#    #legend([b, r], 'HPF acc x axis (surge)', 'HPF acc z axis (heave)')
-#
-#    plt.plot(f[peak_idx], S[peak_idx], 'o', markersize=10, linewidth=2)
-#    plt.plot([f[idx_f], f[idx_f]],[min(S[:]), min_f],'--', linewidth=2)
-#    # ['f = '.format(float(round(f[idx_f]*100)/100))],
-#
-#    return None
+def plot_sgls(depths, data_sgl_mask, sgls, sgl_mask, pitch_lf, roll_lf, heading_lf):
 
+    import matplotlib.pyplot as plt
+    import numpy
 
+    import utils
+    import utils_glides
+
+    sgl_ind    = numpy.where(data_sgl_mask)[0]
+    notsgl_ind = numpy.where(~data_sgl_mask)[0]
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+
+    # Plot glides
+    ax1 = plot_noncontiguous(ax1, depths, sgl_ind, colors[0], 'glides')
+    ax1 = plot_noncontiguous(ax1, depths, notsgl_ind, colors[1], 'not glides')
+
+    ax1.invert_yaxis()
+    ax1.yaxis.label.set_text('depth (m)')
+    ax1.xaxis.label.set_text('samples')
+    ax1.legend(loc='upper right')
+
+    # Plot PRH
+    ax2.plot(range(len(depths)), numpy.rad2deg(pitch_lf), color=colors[2], label='pitch')
+    ax2.plot(range(len(depths)), numpy.rad2deg(roll_lf), color=colors[3], label='roll')
+    ax2.plot(range(len(depths)), numpy.rad2deg(heading_lf), color=colors[4],
+                                               label='heading')
+    ax2.yaxis.label.set_text('degrees')
+    ax2.xaxis.label.set_text('samples')
+    ax2.legend(loc='upper right')
+
+    # Get dives within mask
+    gg = sgls[sgl_mask]
+
+    # Get midpoint of dive occurance
+    x = (gg['start_idx'] + (gg['stop_idx'] - gg['start_idx'])/2)
+    x = x.values.astype(float)
+
+    # Get depthh at midpoint
+    y = depths[numpy.round(x).astype(int)]
+
+    # For each dive_id, sgl_id pair, create annotation string, apply
+    dids = gg['dive_id'].values.astype(int)
+    sids = list(gg.index)
+    n = ['d:{} s:{}'.format(did, sid) for did, sid in zip(dids, sids)]
+
+    # Draw annotations
+    for i, txt in enumerate(n):
+        ax1.annotate(txt, (x[i],y[i]))
+
+    # Plot shaded areas
+    ax1 = plot_shade_mask(ax1, ~data_sgl_mask)
+    ax2 = plot_shade_mask(ax2, ~data_sgl_mask)
+
+    plt.show()
+
+    return None
