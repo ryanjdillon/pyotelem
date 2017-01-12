@@ -13,3 +13,7 @@ experiments.txt
 *.pyc
 *.pyx
 *.npy
+
+# Directories
+archive/
+SAVE/
