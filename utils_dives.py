@@ -22,110 +22,132 @@ def calc_filter_dp(depths_m, cutoff, fs):
 
 def finddives2(depths, min_dive_thresh=10):
     import numpy
+    import pandas
 
     import utils
 
+    # Get start and stop indices for each dive above `min_dive_thresh`
     condition = depths > min_dive_thresh
     ind_start, ind_end = utils.contiguous_regions(condition)
 
+    n_dives = len(ind_start)
+
     dive_mask = numpy.zeros(len(depths), dtype=bool)
-    depth_mean = numpy.zeros(len(ind_start))
-    depth_comp = numpy.zeros(len(ind_start))
 
-    for dive in range(len(ind_start)):
-        dive_mask[ind_start[dive]:ind_end[dive]] = True
-        dive_depths      = depths[ind_start[dive]:ind_end[dive]]
-        depth_mean[dive] = numpy.mean(dive_depths)
-        # Supoosedly time of deepest dive... doesn't appear to be that
-        depth_comp[dive] = numpy.mean(1 + (1/(0.1*dive_depths)))
+    dtypes = numpy.dtype([('dive_id', int),
+                          ('start_idx', int),
+                          ('stop_idx', int),
+                          ('dive_dur', int),
+                          ('depth_max', float),
+                          ('depth_max_idx', float),
+                          ('depth_min', float),
+                          ('depth_min_idx', float),
+                          ('depth_mean', float),
+                          ('comp_mean', float),])
 
-    dive_ind = numpy.vstack([ind_start, ind_end, depth_mean, depth_comp]).T
+    dive_data = numpy.zeros(n_dives, dtype=dtypes)
+
+    for i in range(n_dives):
+        dive_mask[ind_start[i]:ind_end[i]] = True
+        dive_depths                   = depths[ind_start[i]:ind_end[i]]
+        dive_data['dive_id'][i]       = i
+        dive_data['start_idx'][i]     = ind_start[i]
+        dive_data['stop_idx'][i]      = ind_end[i]
+        dive_data['dive_dur'][i]      = ind_end[i] - ind_start[i]
+        dive_data['depth_max'][i]     = dive_depths.max()
+        dive_data['depth_max_idx'][i] = numpy.argmax(dive_depths)
+        dive_data['depth_min'][i]     = dive_depths.min()
+        dive_data['depth_min_idx'][i] = numpy.argmin(dive_depths)
+        dive_data['depth_mean'][i]    = numpy.mean(dive_depths)
+        # TODO Supposedly time of deepest dive... doesn't appear to be that
+        dive_data['comp_mean'][i]     = numpy.mean(1 + (1/(0.1*dive_depths)))
 
     # Filter any dives with an endpoint with an index beyond bounds of array
-    dive_ind = dive_ind[dive_ind[:,1]<len(depths), :]
+    dive_data = dive_data[dive_data['stop_idx'] < len(depths)]
 
-    return dive_ind, dive_mask
+    # Create pandas data frame with following columns, init'd with nans
+    dives = pandas.DataFrame(dive_data)
+
+    return dives, dive_mask
 
 
 def get_des_asc2(depths, dive_mask, pitch, cutoff, fs, order=5):
     import numpy
     import utils_signal
 
-    asc = numpy.zeros(len(depths), dtype=bool)
-    des = numpy.zeros(len(depths), dtype=bool)
-
-    # TODO and deg threshold, i.e. > 30
-    #asc[dive_mask] = pitch[dive_mask] > 0
-    #des[dive_mask] = pitch[dive_mask] < 0
+    asc_mask = numpy.zeros(len(depths), dtype=bool)
+    des_mask = numpy.zeros(len(depths), dtype=bool)
 
     b, a = utils_signal.butter_filter(cutoff, fs, order, 'low')
     dfilt = utils_signal.butter_apply(b, a, depths)
 
     dp = numpy.hstack([numpy.diff(dfilt), 0])
 
-    asc[dive_mask] = dp[dive_mask] < 0
-    des[dive_mask] = dp[dive_mask] > 0
+    asc_mask[dive_mask] = dp[dive_mask] < 0
+    des_mask[dive_mask] = dp[dive_mask] > 0
 
     # Remove descents/ascents withough a corresponding ascent/descent
-    des, asc = rm_incomplete_des_asc(des, asc)
+    des_mask, asc_mask = rm_incomplete_des_asc(des_mask, asc_mask)
 
-    return des, asc
+    return des_mask, asc_mask
 
 
-def rm_incomplete_des_asc(des, asc):
+def rm_incomplete_des_asc(des_mask, asc_mask):
     '''Remove descents-ascents that have no corresponding ascent-descent'''
     import utils
 
     # Get start/stop indices for descents and ascents
-    des_start, des_stop = utils.contiguous_regions(des)
-    asc_start, asc_stop = utils.contiguous_regions(asc)
+    des_start, des_stop = utils.contiguous_regions(des_mask)
+    asc_start, asc_stop = utils.contiguous_regions(asc_mask)
 
-    des = utils.rm_regions(des, asc, des_start, des_stop)
-    asc = utils.rm_regions(asc, des, asc_start, asc_stop)
+    des_mask = utils.rm_regions(des_mask, asc_mask, des_start, des_stop)
+    asc_mask = utils.rm_regions(asc_mask, des_mask, asc_start, asc_stop)
 
-    return des, asc
+    return des_mask, asc_mask
 
 
-def get_bottom(depths, des, asc):
+def get_bottom(depths, des_mask, asc_mask):
     import numpy
 
     import utils
 
     # Get start/stop indices for descents and ascents
-    des_start, des_stop = utils.contiguous_regions(des)
-    asc_start, asc_stop = utils.contiguous_regions(asc)
+    des_start, des_stop = utils.contiguous_regions(des_mask)
+    asc_start, asc_stop = utils.contiguous_regions(asc_mask)
 
     # Bottom time is at stop of descent until start of ascent
     bottom_len = min(len(des_stop), len(asc_start))
     bottom_start = des_stop[:bottom_len]
     bottom_stop  = asc_start[:bottom_len]
 
-    bottom = numpy.zeros((len(bottom_start),4), dtype=float)
+    BOTTOM = numpy.zeros((len(bottom_start),4), dtype=float)
 
     # Time (seconds) at start of bottom phase/end of descent
-    bottom[:,0] = bottom_start
+    BOTTOM[:,0] = bottom_start
 
     # Depth (m) at start of bottom phase/end of descent
-    bottom[:,1] = depths[bottom_start]
+    BOTTOM[:,1] = depths[bottom_start]
 
     # Time (seconds) at end of bottom phase/start of asscent
-    bottom[:,2] = bottom_stop
+    BOTTOM[:,2] = bottom_stop
 
     # Depth (m) at end of bottom phase/start of descent
-    bottom[:,3] = depths[bottom_stop]
+    BOTTOM[:,3] = depths[bottom_stop]
 
-    return bottom
+    return BOTTOM
 
 
-def get_phase(depths, des, asc):
+def get_phase(n_samples, des_mask, asc_mask):
     '''get the directional phase sign for each sample in depths
 
     Args
     ----
-    asc: numpy.ndarray, shape (n,)
-        boolean mask of values where animal is ascending
-    asc: numpy.ndarray, shape(n,)
+    n_samples: int
+        length of output phase array
+    des_mask: numpy.ndarray, shape (n,)
         boolean mask of values where animal is descending
+    asc_mask: numpy.ndarray, shape(n,)
+        boolean mask of values where animal is ascending
 
     Returns
     -------
@@ -135,70 +157,11 @@ def get_phase(depths, des, asc):
     '''
     import numpy
 
-    phase = numpy.zeros(len(depths), dtype=int)
-
-    phase[asc] =  1
-    phase[des] = -1
+    phase = numpy.zeros(n_samples, dtype=int)
+    phase[asc_mask] =  1
+    phase[des_mask] = -1
 
     return phase
-
-
-def create_dive_summary(dive_ind):
-    '''Create a numpy array with summary values of dives
-
-    Args
-    ----
-    dive_ind: numpy.ndarray
-      Dive table
-
-    Returns
-    -------
-    D: numpy.ndarray
-      table of dive summary files
-
-    Notes
-    -----
-    Implement as record array:
-    D = numpy.zeros((n_dives)), dtype=dtypes)
-
-    where:
-    dtype = numpy.dtype([('start_time', int),  # start in sec since tag on time
-                         ('end_time', int),    # end in sec since tag on time
-                         ('duration', int),    # dive duration in sec
-                         ('surface', int),     # post-dive surface duration in sec
-                         ('max_time', int),    # time of deepest point
-                         ('max_depth', float), # maximum dive depth of each dive
-                         ('dive_id', int),     # dive ID number
-                         ])
-    '''
-    import numpy
-
-    n_dives = len(dive_ind[:, 0])
-
-    D = numpy.zeros((n_dives, 7))
-
-    # start in sec since tag on time
-    D[:, 0] = dive_ind[:, 0]
-
-    # end in sec since tag on time
-    D[:, 1] = dive_ind[:, 1]
-
-    # dive duration in sec
-    D[:, 2] = dive_ind[:, 1] - dive_ind[:, 0]
-
-    # post-dive surface duration in sec
-    D[:, 3] = numpy.hstack((dive_ind[1:, 0] - dive_ind[0:-1, 1], [numpy.nan]))
-
-    # time of deepest point
-    D[:, 4] = dive_ind[:, 3]
-
-    # maximum dive depth of each dive
-    D[:, 5] = dive_ind[:, 2]
-
-    # dive ID number
-    D[:, 6] = numpy.arange(n_dives)
-
-    return D
 
 
 #def finddives(depths_m, fs, thresh=10, surface=1, findall=False):
@@ -228,7 +191,7 @@ def create_dive_summary(dive_ind):
 #    T: nx6 ndarray
 #        is the matrix of cues with columns:
 #
-#        [start_idx, end_idx, max_depth, max_depth_idx, mean_depth, mean_compression]
+#        [start_idx, stop_idx, max_depth, max_depth_idx, mean_depth, mean_compression]
 #
 #        If there are n dives deeper than thresh in `depths_m`, then T will be
 #        an nx6 matrix. Partial dives at the beginning or end of the recording
@@ -464,19 +427,6 @@ def create_dive_summary(dive_ind):
 #    T = numpy.delete(T, bad_dives, 0)
 #
 #    return T, DES, ASC, phase, bottom
-
-
-#def get_dive_mask(depths, T, fs):
-#    '''Get boolean mask of values in depths that are dives'''
-#    import numpy
-#
-#    dive_mask = numpy.zeros(depths.size, dtype=bool)
-#    for i in range(T.shape[0]):
-#        idx_start = int(round(T[i, 0] * fs))
-#        idx_end  = int(round(T[i, 1] * fs))
-#        dive_mask[idx_start:idx_end] = True
-#
-#    return dive_mask
 
 
 #def select_last_dive(depths, pitch, pitch_lf, T, fs):
