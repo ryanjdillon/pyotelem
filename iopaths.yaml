@@ -1,0 +1,28 @@
+# Path containg separate directories for each experiment to be analyzed
+root: /home/ryan/Desktop/edu/01_PhD/projects/smartmove/data_coexist/ 
+
+# Contains accelerometer data for each experiment to be analyzed
+acc: data_accelerometer/
+
+# Containes acceleration calibration YAMLs for associated tag ID
+acc_cal:
+  34839: 20150311_W190-PD3GT_34839_Skinny_Control/
+  34840: 20160421_W190PD3GT_34840_Skinny_4Neutral/
+
+# Path containing all text respirometry data
+respirometry: respirometry/2016/Skinny/textfiles/Freq0.01/
+
+# Contains subglide data directories for each processed experiement
+glide: data_glide/
+
+# Path for MCMC model input files
+mcmc: model_mcmc/
+
+# Path for MCMC model input files
+ann: model_ann/
+
+# Default paths for debugging glide analysis
+debug:
+  exp_path: 20150311_W190-PD3GT_34839_Skinny_Control
+  acc_cal_path: 20150311_W190-PD3GT_34839_Skinny_Control
+  glide_cfg_path: 20150311_W190-PD3GT_34839_Skinny_Control
