@@ -7,7 +7,7 @@
 #    in freq bands defined by the wavelet transform.
 #     * see Haar wavelet SWT denoising
 
-def filter_accelerometer(A_g, fs_a, cutoff, order=5):
+def filter_accelerometer(a, fs_a, cutoff, order=5):
     '''Calculate low and high filtered tri-axial accelerometer data
 
     Args
@@ -32,14 +32,14 @@ def filter_accelerometer(A_g, fs_a, cutoff, order=5):
     import numpy
 
     # Create dict of btypes and associated arrays to fill with filtered data
-    data_filt = OrderedDict((('low', numpy.zeros_like(A_g)),
-                             ('high', numpy.zeros_like(A_g))))
+    data_filt = OrderedDict((('low', numpy.zeros_like(a)),
+                             ('high', numpy.zeros_like(a))))
 
     # Create filter of `btype`
     for btype, data in data_filt.items():
         b, a, = butter_filter(cutoff, fs_a, order=order, btype=btype)
         # Apply on each axis in axis dims
-        for i in range(A_g.shape[1]):
+        for i in range(3):
             data[:,i] = butter_apply(b, a, A_g[:,i])
         # Garbage collect filter, just in case
         del b, a
@@ -48,14 +48,14 @@ def filter_accelerometer(A_g, fs_a, cutoff, order=5):
     return tuple(a for a in data_filt.values())
 
 
-def inst_speed(depths, smoothpitch, fs, stroke_f, f, ind, thresh_deg):
+def calc_inst_speed(depths, pitch_lf, fs, stroke_f, f):
     '''Estimate instantaneous swimming speed as depthrate
 
     Args
     ----
     depths:
         the depth time series in meters, sampled at fs Hz.
-    smoothpitch:
+    pitch_lf:
         pitch estimated from the low pass filtered acceleration signal
     fs:
         sensor sampling rate in Hz
@@ -68,8 +68,6 @@ def inst_speed(depths, smoothpitch, fs, stroke_f, f, ind, thresh_deg):
         of the low pass filter. f is a fraction of stroke_f e.g., 0.4.
     ind:
         sample range over which to analyse.
-    thresh_deg:
-        degrees threshold for which the speed will be estimated
 
     Returns
     -------
@@ -91,13 +89,10 @@ def inst_speed(depths, smoothpitch, fs, stroke_f, f, ind, thresh_deg):
 
     import utils_signal
 
-    # TODO default stroke_f rate 0.5 here, 0.4 elsewhere
-
-    # define the cut off frequency (cutoff) for the low-pass filter
+    # define the cut off frequency `cutoff` for the low-pass filter
     cutoff = f * stroke_f
 
-    # Wn is the filter cut-off normalized to half the sampling frequency
-    # (a.k.a the critical frequency).
+    # Wn (critical frequency) is the filter cut-off normalized to 0.5*fs
     nyq = 0.5 * fs
     Wn  = cutoff / nyq
 
@@ -106,14 +101,41 @@ def inst_speed(depths, smoothpitch, fs, stroke_f, f, ind, thresh_deg):
 
     # apply a symmetric FIR low-pass filter to Aw and Mw with 0 group delay to
     # obtain the low-pass filtered acceleration signal Alf
-    speed = numpy.diff(depths[ind]) * fs
+    speed = numpy.diff(depths)
     speed_filtered, speed_filter = utils_signal.fir_nodelay(speed, n_f, Wn)
 
-    InstSpeed  = numpy.hstack((speed_filtered, numpy.nan))
+    inst_speed  = numpy.hstack((speed_filtered, numpy.nan))
 
-    swim_speed = -InstSpeed / smoothpitch
-    xa         = numpy.copy(smoothpitch)
-    swim_speed[abs(numpy.rad2deg(xa)) < thresh_deg] = numpy.nan
+    swim_speed = -inst_speed / pitch_lf
+
+    return swim_speed
+
+def estimate_speed(depths, pitch_rads, fs_a, rm_neg=False):
+    '''Estimate swim speed from change in depth and pitch angle
+    '''
+    import numpy
+
+    import utils_signal
+
+    # TODO check this value, perhaps get from user input
+    cutoff = 0.09
+
+    # vertical speed in m/s
+    vert_speed = numpy.diff(depths) / fs_a
+
+    # smooth vertical speed signal with lowpass filter
+    b, a = utils_signal.butter_filter(cutoff, fs_a, order=5, btype='low')
+    smooth_vert_speed = utils_signal.butter_apply(b, a, vert_speed)
+    smooth_vert_speed = numpy.hstack([smooth_vert_speed, numpy.nan])
+
+    # calc hypotenuse component, swim_speed, from vertical component and pitch
+    sin_pitch = numpy.sin(pitch_rads)
+    #swim_speed = -smooth_vert_speed/sin_pitch
+    swim_speed = abs(smooth_vert_speed/sin_pitch)
+
+    # Remove negative velocities
+    if rm_neg is True:
+        swim_speed[swim_speed < 0] = numpy.nan
 
     return swim_speed
 
@@ -512,7 +534,7 @@ def peakfinder(x, sel=None, peak_thresh=0, extrema=None):
 #
 #    peak_loc, peak_mag = peakfinder(x)
 #
-#    assert peak_loc = 
+#    assert peak_loc =
 
 
 def fir_nodelay(x, n, fp, qual=None):
