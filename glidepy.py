@@ -96,6 +96,7 @@ def run_all(iopaths_filename, debug=False):
 
                 # Get correct calibration path given tag ID number
                 acc_cal_path = paths['acc_cal'][int(exp_path.split('_')[2])]
+                print('Tag calibration file path: {}'.format(acc_cal_path))
 
                 # Currently creating a new configuration for each exp
                 glide_cfg_path = exp_path
@@ -567,6 +568,8 @@ def load_lleo(acc_data_path, cal_yaml_path, min_depth):
 
     from pylleo.pylleo import lleoio, lleocal
 
+    from rjdtools import yaml_tools
+
     # Parse tag model and id from directory/experiment name
     experiment_id = os.path.split(acc_data_path)[1].replace('-','')
     tag_model = experiment_id.split('_')[1]
@@ -575,11 +578,9 @@ def load_lleo(acc_data_path, cal_yaml_path, min_depth):
     sample_f  = 1
 
     # Load calibrate data
-    cal_dict = lleocal.read_cal(cal_yaml_path)
+    cal_dict = yaml_tools.read_yaml(cal_yaml_path)
 
     # Verify sensor ID of data matches ID of CAL
-    print('exp', tag_model, tag_id)
-    print('cal', cal_dict['tag_model'], cal_dict['tag_id'])
     if cal_dict['tag_id'] != tag_id:
         raise SystemError('Data `tag_id` does not match calibration `tag_id`')
 
