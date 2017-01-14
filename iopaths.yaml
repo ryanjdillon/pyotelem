@@ -7,7 +7,7 @@ acc: data_accelerometer/
 # Containes acceleration calibration YAMLs for associated tag ID
 acc_cal:
   34839: 20150311_W190-PD3GT_34839_Skinny_Control/
-  34840: 20160421_W190PD3GT_34840_Skinny_4Neutral/
+  34840: 20160418_W190PD3GT_34840_Skinny_2Neutral/
 
 # Contains csv and pandas pickled dataframes of bc measurements
 bodycondition: data_body-condition/
