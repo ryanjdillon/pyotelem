@@ -114,6 +114,8 @@ def lleo_glide_analysis(root_path, acc_path, glide_path, exp_path,
     import numpy
     import os
 
+    # TODO copy yaml_tools to bodycondition, remove external import
+    from rjdtools import yaml_tools
     import logger
     import utils_data
     import utils_plot
@@ -122,13 +124,13 @@ def lleo_glide_analysis(root_path, acc_path, glide_path, exp_path,
     cal_fname = 'cal.yaml'
 
     # Output filenames
-    data_fname          = 'pydata_{}.p'.format(exp_path)
-    cfg_fname           = 'glide_config.yaml'
-    dives_fname         = 'glide_dives.p'
-    sgl_fname           = 'glide_sgls.p'
-    glide_ratio_fname   = 'glide_ratios.p'
-    sgls_mask_fname     = 'glide_sgls_mask.npy'
-    data_masks_fname    = 'glide_data_masks.p'
+    data_fname        = 'pydata_{}.p'.format(exp_path)
+    cfg_fname         = 'glide_config.yaml'
+    dives_fname       = 'glide_dives.p'
+    sgl_fname         = 'glide_sgls.p'
+    glide_ratio_fname = 'glide_ratios.p'
+    sgls_mask_fname   = 'glide_sgls_mask.npy'
+    data_masks_fname  = 'glide_data_masks.p'
 
     # Input and output directories
     acc_data_path = os.path.join(root_path, acc_path, exp_path)
@@ -182,11 +184,11 @@ def lleo_glide_analysis(root_path, acc_path, glide_path, exp_path,
                          data['h_lf'].values)
 
     # Save parameter configuration to YAML files
-    log.new_entry('Save config YAML file')
+    log.new_entry('Save output')
     save_config(cfg, cfg_yaml_path)
 
     # Save data
-    data.to_pickle(os.path.join(root_path, acc_path, data_fname))
+    data.to_pickle(os.path.join(root_path, acc_path, exp_path, data_fname))
     sgls.to_pickle(os.path.join(out_path, sgl_fname))
     dives.to_pickle(os.path.join(out_path, dives_fname))
     glide_ratio.to_pickle(os.path.join(out_path,glide_ratio_fname))
@@ -276,6 +278,7 @@ def process_sensor_data(log, cfg, data, fs_a, Mw=None, plots=True, debug=False):
         cfg['tmax']  = 1 /cfg['stroke_f']  # seconds
     else:
         cutoff = 0.3
+        cfg['cutoff'] = cutoff
 
 
     # 3.2.2 Separate low and high frequency signals
@@ -354,7 +357,7 @@ def process_sensor_data(log, cfg, data, fs_a, Mw=None, plots=True, debug=False):
     #                                            fill_nans=True)
     # TODO config file?
     zero_level = 0.1
-    theoretic_max = 8 #m/s
+    theoretic_max = None #m/s
     data['speed'] = utils_prh.speed_from_acc_and_ref(data['Ax_g_lf'].values,
                                                      fs_a,
                                                      data['propeller'].values,
@@ -482,68 +485,68 @@ def load_glide_config(cfg_yaml_path):
 
     from rjdtools import yaml_tools
 
-    if os.path.isfile(cfg_yaml_path):
-        cfg = yaml_tools.read_yaml(cfg_yaml_path)
+    #if os.path.isfile(cfg_yaml_path):
+    #    cfg = yaml_tools.read_yaml(cfg_yaml_path)
 
-    else:
-        cfg = OrderedDict()
+    #else:
+    cfg = OrderedDict()
 
-        # Record the last date modified & git version
-        fmt = '%Y-%m-%d_%H%M%S'
-        cfg['last_modified'] = datetime.datetime.now().strftime(fmt)
+    # Record the last date modified & git version
+    fmt = '%Y-%m-%d_%H%M%S'
+    cfg['last_modified'] = datetime.datetime.now().strftime(fmt)
 
-        #TODO add git version & other experiment info
+    #TODO add git version & other experiment info
 
-        # Acceleromter/Magnotometer axis to analyze
-        cfg['n'] = 0#1
+    # Acceleromter/Magnotometer axis to analyze
+    cfg['n'] = 0#1
 
-        # Minimum depth at which to recognize a dive (2. Define dives)
-        cfg['min_depth'] = 0.4
+    # Minimum depth at which to recognize a dive (2. Define dives)
+    cfg['min_depth'] = 0.4
 
-        # Maximum cummulative change in depth over a glide
-        cfg['max_depth_delta'] = 3.0
+    # Maximum cummulative change in depth over a glide
+    cfg['max_depth_delta'] = 8.0
 
-        # Minimum mean speed of sublide
-        cfg['min_speed'] = 0.3
+    # Minimum mean speed of sublide
+    cfg['min_speed'] = 0.3
 
-        # Maximum mean speed of sublide
-        cfg['max_speed'] = 20
+    # Maximum mean speed of sublide
+    cfg['max_speed'] = 10
 
-        # Maximum cummulative change in speed over a glide
-        cfg['max_speed_delta'] = 1.0
+    # Maximum cummulative change in speed over a glide
+    cfg['max_speed_delta'] = 1.0
 
-        # Number of samples per frequency segment in PSD calculation
-        cfg['nperseg'] = 256
+    # Number of samples per frequency segment in PSD calculation
+    cfg['nperseg'] = 256
 
-        # Minimumn power of frequency for identifying stroke_f (3. Get stroke_f)
-        cfg['peak_thresh'] = 0.10
+    # Minimumn power of frequency for identifying stroke_f (3. Get stroke_f)
+    cfg['peak_thresh'] = 0.10
 
-        # Frequency of stroking, determinded from PSD plot
-        cfg['stroke_f'] = 0.4 # Hz
+    # Frequency of stroking, determinded from PSD plot
+    cfg['stroke_f'] = 0.4 # Hz
 
-        # fraction of stroke_f to calculate cutoff frequency, Wn
-        cfg['f'] = 0.4
+    # fraction of stroke_f to calculate cutoff frequency, Wn
+    cfg['f'] = 0.4
 
-        # Duration of sub-glides (8. Split sub-glides, 10. Calc glide des/asc)
-        cfg['dur'] = 5 # seconds
+    # Duration of sub-glides (8. Split sub-glides, 10. Calc glide des/asc)
+    cfg['dur'] = 5 # seconds
 
-        # Minimum duration of sub-glides, `False` excludes sublides < dur seconds
-        cfg['min_dur'] = False # seconds
+    # Minimum duration of sub-glides, `False` excludes sublides < dur seconds
+    cfg['min_dur'] = False # seconds
 
-        # Threshold frequency power for identifying the stroke frequency
-        cfg['J'] = 2 / 180 * numpy.pi
+    # Threshold frequency power for identifying the stroke frequency
+    cfg['J'] = 2 / 180 * numpy.pi
 
-        # Maximum length of stroke signal
-        cfg['t_max'] = 1 / cfg['stroke_f'] # seconds
+    # Maximum length of stroke signal
+    cfg['t_max'] = 1 / cfg['stroke_f'] # seconds
 
-        # Pitch angle (degrees) to consider sgls
-        cfg['pitch_thresh'] = 30
+    # Pitch angle (degrees) to consider sgls
+    cfg['pitch_thresh'] = 30
 
-        # For magnetic pry routine
-        cfg['alpha'] = 25
+    # For magnetic pry routine
+    cfg['alpha'] = 25
 
-        # Save default config to file
-        save_config(cfg, cfg_yaml_path)
+    # Save default config to file
+    save_config(cfg, cfg_yaml_path)
 
     return cfg
 
