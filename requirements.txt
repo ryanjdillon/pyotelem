@@ -1,7 +1,11 @@
 astropy==1.2.1
 bokeh==0.12.1
 click==6.6
+climate==0.4.6
 numpy==1.11.1
 numpydoc==0.6.0
 pandas==0.18.1
+pymc3==3.0rc4
 scipy==0.18.0
+sklearn==0.0
+theanets==0.7.3
