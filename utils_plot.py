@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import seaborn
-from decorators import switch
 
 # Use specified style (e.g. 'ggplot')
 plt.style.use('seaborn-whitegrid')
@@ -570,8 +569,8 @@ def plot_sgls(depths, data_sgl_mask, sgls, sgl_mask, pitch_lf, roll_lf, heading_
     import matplotlib.pyplot as plt
     import numpy
 
-    import utils
-    import utils_glides
+    from bodycondition import utils
+    from bodycondition import utils_glides
 
     sgl_ind    = numpy.where(data_sgl_mask)[0]
     notsgl_ind = numpy.where(~data_sgl_mask)[0]
