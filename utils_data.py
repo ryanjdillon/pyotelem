@@ -4,7 +4,7 @@ def filter_sgls(n_samples, exp_ind, sgls, max_pitch, min_depth,
     '''Create mask filtering only glides matching criterea'''
     import numpy
 
-    import utils
+    from bodycondition import utils
 
     # Defined experiment indices
     exp_mask = (sgls['start_idx'] >= exp_ind[0]) & \
@@ -150,7 +150,109 @@ def __add_ids_to_df(df, exp_id, animal_id=None, tag_id=None):
     return df
 
 
-def create_mcmc_inputs(root_path, glide_path, mcmc_path):
+def read_bodycondition(filename):
+    '''Reads body condition csv or pandas pickle and add density column'''
+    import os
+    import pandas
+
+    import utils_morphometrics
+
+    # TODO make columns uniform for body composition
+
+    # Read to pandas dataframe
+    if filename.endswith('.csv'):
+        bc = pandas.read_csv(filename)
+    elif filename.endswith('.p'):
+        bc = pandas.read_pickle(filename)
+    else:
+        raise SystemError('Filename must be either .csv or pandas .p '
+                          'pickle format.')
+
+    # Remove any extra whitespace in titles or animal str column
+    bc.rename(columns= lambda x: x.strip())
+    bc['animal'] = list(map(str.strip, bc['animal']))
+
+    # Get percent body compositions, including density - what we want
+    perc_comps = utils_morphometrics.lip2dens(bc['fat_perc'])
+    bc['density'] = perc_comps['density']
+
+    # Write as pandas pickle file to same directory
+    bc.to_pickle(os.path.splitext(filename)[0]+'.p')
+
+    return bc
+
+
+def create_ann_inputs(root_path, glide_path, ann_path, bc_path, bc_filename,
+        sgl_cols):
+    '''Compile all experiment data for ann model input'''
+    import numpy
+    import os
+    import pandas
+
+    def nearest(items, pivot):
+        return min(items, key=lambda x: abs(x - pivot))
+
+    def add_col(df, col_name, values):
+        '''Add column `col_name` dataframe with values'''
+        return df.assign(**{col_name:values})
+
+    def insert_bc_col_to_sgls(sgls, bc, col_name):
+        '''Insert bodycondition from nearest date in bc to sgls dataframes'''
+        import datetime
+        import numpy
+
+        # Create empty column for body condition target values
+        sgls = add_col(sgls, col_name, numpy.full(len(sgls), numpy.nan))
+
+        # Loop through rows in `sgls`
+        for i in sgls.index:
+
+            # Get datetime from subglide `exp_id`
+            date_str = (sgls['exp_id'][i].split('_'))[0]
+            sgl_dt = datetime.datetime.strptime(date_str, '%Y%m%d')
+
+            # Get `bc` mask from subglide's animal ID in `exp_id`
+            animal = (sgls['exp_id'][i].split('_')[3]).lower()
+            bc_animal_mask = bc['animal'] == animal
+
+            # Make sure an entry for this animal exists in body condition data
+            if len(numpy.where(bc_animal_mask)) == 0:
+                raise KeyError('Animal ID `{}` not found in body condition '
+                               'dataframe `bc`.'.format(animal))
+
+            # find date in `bc` (filtered by animal) nearest sgl date
+            bc_dt = nearest(bc['date'][bc_animal_mask], sgl_dt)
+
+            # Get `bc` index position of nearest datetime
+            bc_idx = numpy.argmax(bc['date'] == bc_dt)
+
+            # Write body condition value to `sgl` subglide row
+            print(col_name, bc_idx, i)
+            sgls[col_name][i] = bc[col_name][bc_idx]
+
+        return sgls
+
+    # Compile subglide inputs for all experiments
+    exps_all, sgls_all, dives_all = compile_experiments(root_path, glide_path)
+
+    # Read body condition data
+    bc_file_path = os.path.join(root_path, bc_path, bc_filename)
+    bc = read_bodycondition(bc_file_path)
+
+    # TODO review columns useful for ann
+    sgls = sgls_all[sgl_cols]
+
+    # Add column with body condition target values to `sgls`
+    sgls = insert_bc_col_to_sgls(sgls, bc, 'density')
+
+    # Save output
+    sgls_all.to_pickle(os.path.join(root_path, mcmc_path, 'sgls_all.p'))
+    #exps_all.to_pickle(os.path.join(root_path, mcmc_path, 'exps_all.p'))
+    #dives_all.to_pickle(os.path.join(root_path, mcmc_path, 'dives_all.p'))
+
+    return
+
+def create_mcmc_inputs(root_path, glide_path, mcmc_path, sgl_cols):
     '''Add MCMC distribution fields to each MCMC input dataframe'''
     import os
     import numpy
@@ -162,9 +264,6 @@ def create_mcmc_inputs(root_path, glide_path, mcmc_path):
     exps_all, sgls_all, dives_all = compile_experiments(root_path, glide_path)
 
     # Desired columns to extract from subglide analysis output
-    sgl_cols = ['exp_id', 'dive_id', 'mean_speed', 'mean_depth',
-                'mean_sin_pitch', 'mean_swdensity', 'mean_a', 'SE_speed_vs_time']
-
     sgls_all = sgls_all[sgl_cols]
 
     # Add for fields MCMC analysis output
@@ -199,8 +298,26 @@ if __name__ == '__main__':
     root_path  = paths['root']
     glide_path = paths['glide']
     mcmc_path  = paths['mcmc']
+    ann_path   = paths['ann']
+    bc_path    = paths['bodycondition']
 
     # Compile processed subglide data for MCMC model
+    sgl_cols = ['exp_id', 'dive_id', 'mean_speed', 'mean_depth',
+                'mean_sin_pitch', 'mean_swdensity', 'mean_a', 'SE_speed_vs_time']
+
     mcmc_exps, mcmc_sgls, mcmc_dives = create_mcmc_inputs(root_path,
                                                           glide_path,
-                                                          mcmc_path)
+                                                          mcmc_path,
+                                                          sgl_cols)
+
+    # Compile processed subglide data for ANN model
+    sgl_cols = ['exp_id', 'mean_speed', 'total_depth_change',
+                'mean_sin_pitch', 'mean_swdensity', 'SE_speed_vs_time']
+
+    bc_filename = 'bc_no-tag_skinny_yellow.p'
+    ann_exps, ann_sgls, ann_dives = create_ann_inputs(root_path,
+                                                      glide_path,
+                                                      ann_path,
+                                                      bc_path,
+                                                      bc_filename,
+                                                      sgl_cols)
