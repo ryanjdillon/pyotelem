@@ -86,7 +86,7 @@ def triaxial_integration(x, y, z, initial=0):
     return x_int, y_int, z_int
 
 
-def speed_from_acc_and_ref(x, fs_a, rel_speed, zero_level, theoretic_max,
+def speed_from_acc_and_ref(x, fs_a, rel_speed, zero_level, theoretic_max=None,
         rm_neg=True):
     '''Estimate speed from x-axis acceleration, fitting to relative speed data
 
@@ -112,13 +112,15 @@ def speed_from_acc_and_ref(x, fs_a, rel_speed, zero_level, theoretic_max,
     Note
     ----
     The relative speed data is fit to the curve generated from the derived
-    speed from the acceleration signal. The gain of this fit is adjusted such
+    speed from the acceleration signal.
+
+    If a theoritc maximum speed is given, the gain of this fit is adjusted such
     that the maximum value of the resulting speed array equals the animal's
     theoretical maximum speed.This assumes that the animal reaches its maximum
     theoretical speed at least once during the dataset.
     '''
-    # TODO problem: observed max could be outlier. outliers in signal/obs could
-    # be filtered
+    # NOTE possible problem: observed max could be outlier. outliers in
+    # signal/obs could be filtered
 
     import numpy
     import scipy.integrate
@@ -150,9 +152,10 @@ def speed_from_acc_and_ref(x, fs_a, rel_speed, zero_level, theoretic_max,
     A = numpy.vstack([measured, numpy.ones(len(measured))]).T
     gain, offset = numpy.linalg.lstsq(A, calibration)[0]
 
-    # Adjust gain for theoretical max speed of animal, assuming at least one
-    # occurance of max speed
-    gain = (theoretic_max-offset)/measured.max()
+    if theoretic_max is not None:
+        # Adjust gain for theoretical max speed of animal, assuming at least one
+        # occurance of max speed
+        gain = (theoretic_max-offset)/measured.max()
 
     # Apply calibration to relative speed sensor data
     x_speed_cal = (measured*gain)+offset
