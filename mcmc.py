@@ -63,30 +63,49 @@ dives
 # see following for implementation in PyMC3:
 # http://stackoverflow.com/a/32654901/943773
 
+# TODO improve design to remove loops, use `shape=` for dist defs
+# http://stackoverflow.com/a/25052556/943773
 
-def run_mcmc_all(root_path, glide_path, mcmc_path):
+# TODO, pass command to create/compile that just runs all data for server
+# scripts
+
+def run_mcmc_all(root_path, glide_path, mcmc_path, manual_selection=True,
+        debug=False):
     import datetime
     import os
 
     import utils_data
 
-    now = datetime.datetime.now().strftime('%Y-%m%-%d_%H%M%S')
-    iterations = 1000
-    njobs = 2
-    trace_name = '{}_mcmc_iter{}_njobs{}'.format(now, iterations, njobs)
-    trace_name = os.path.join(root_path, mcmc_path, trace_name)
+    now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    n_init = 1000
+    init   = 'advi_map'
+    n_iter = 1000
+    njobs  = 2
+    trace_name = '{}_mcmc_iter{}_njobs{}'.format(now, n_iter, njobs)
+
     trace_path = os.path.join(mcmc_path, trace_name)
+    os.makedirs(os.path.join(root_path, trace_path), exist_ok=True)
 
     # Load data
+    sgl_cols = ['exp_id', 'dive_id', 'mean_speed', 'mean_depth',
+                'mean_sin_pitch', 'mean_swdensity', 'mean_a', 'SE_speed_vs_time']
     exps, sgls, dives = utils_data.create_mcmc_inputs(root_path, glide_path,
-                                                      trace_path)
+                                                      trace_path, sgl_cols,
+                                                      manual_selection=manual_selection)
+    if debug:
+        n_samples = 25
+        print('Debug on. Running {}/{} subglides'.format(n_samples, len(sgls)))
+        sgls = sgls.sample(n=n_samples)
+
     # Run model
-    results = run_mcmc(exps, sgls, dives, trace_name)
+    results = run_mcmc(exps, sgls, dives, trace_name, n_iter=n_iter, init=init,
+                       n_init=n_init, njobs=njobs)
 
     return None
 
 
-def run_mcmc(exps, sgls, dives, trace_name, iterations, njobs):
+def run_mcmc(exps, sgls, dives, trace_name, n_iter, init=None, n_init=None,
+        njobs=None):
 
 
     def drag_with_speed(CdAm, dsw, mean_speed):
@@ -200,9 +219,9 @@ def run_mcmc(exps, sgls, dives, trace_name, iterations, njobs):
         vair_dive_rate  = numpy.zeros(len(dives), dtype=object)
         for d in dives.index:
             vair_dive_shape[d] = (vair_g ** 2) / vair_g_var
-            vair_dive_shape[e].name = r'$Vair\alpha_{dive'+str(d)+'}$'
+            vair_dive_shape[d].name = r'$Vair\alpha_{dive'+str(d)+'}$'
             vair_dive_rate[d]  = vair_g / vair_g_var
-            vair_dive_rate[e].name = r'$Vair\beta_{dive'+str(d)+'}$'
+            vair_dive_rate[d].name = r'$Vair\beta_{dive'+str(d)+'}$'
 
             vair_name = 'Vair_dive_{dive'+str(d)+'}'
             vair_dive[d] = bounded_gamma(vair_name, alpha=vair_dive_shape[d],
@@ -236,11 +255,12 @@ def run_mcmc(exps, sgls, dives, trace_name, iterations, njobs):
                                          sgls['mean_swdensity'].iloc[j],
                                          sgls['mean_sin_pitch'].iloc[j],
                                          p_air, g)
+
             term3[j].name = 'term3_{sgl'+str(j)+'}'
 
             # Modelled acceleration
             a_mu[j] = term1[j] + term2[j] + term3[j]
-            a_mu[j].name = '$Acc\mu_{sgl'+str(j)+'}$'
+            a_mu[j].name = '$a_\mu_{sgl'+str(j)+'}$'
 
             # Fitting modelled acceleration `sgls['a_mu']` to observed
             # acceleration data `sgls['mean_a']` assumes observed values follow
@@ -250,21 +270,42 @@ def run_mcmc(exps, sgls, dives, trace_name, iterations, njobs):
             # TODO perhaps perform a polyfit, for better residuals/tau
             a_tau = 1/((sgls['SE_speed_vs_time'].iloc[j]+0.001)**2)
 
-            a_name = 'a_{sgl'+str(j)+'}'
+            a_name = '$a_{sgl'+str(j)+'}$'
             a[j] = pymc3.Normal(a_name, a_mu[j], a_tau, testval=1)
-            a[j].name = '$Acc_{sgl'+str(j)+'}$'
 
+        # Define which vars are to be sampled from
+        tracevars = [compr, CdAm_g, bd_g, vair_g]
 
-        # Append each var in ndarrays of MCMC vars to list `tracevars`
-        tracevars = [compr, CdAm_g, CdAm_g_var, bd_g, bd_g_var, vair_g, vair_g_var]
-        #not_included = [CdAm_g_SD, bd_g_SD, vair_g_SD,]
-        add_vars = [CdAm_ind, bd_ind, vair_dive, a]
-        #not_included_nd =  [CdAm_ind_shape, CdAm_ind_rate, bd_ind_shape,
-        #                    bd_ind_rate, vair_dive_shape, vair_dive_rate, a_mu]
+        add_vars  = [CdAm_ind, bd_ind, vair_dive, a]
 
+        extra_global = [CdAm_g_var, CdAm_g_SD,
+                        bd_g_var, bd_g_SD,
+                        vair_g_var, vair_g_SD]
+
+        extra_ind  = [CdAm_ind_shape, CdAm_ind_rate,
+                      bd_ind_shape, bd_ind_rate]
+
+        extra_dive = [vair_dive_shape, vair_dive_rate]
+
+        extra_sgl  = [a_mu,]
+
+        # Append `add_vars` list of var arrays to `tracevars`, collect names
         [[tracevars.append(v) for v in a] for a in add_vars]
         varnames = [v.name for v in tracevars]
-        print(varnames)
+
+        # Get counts and print
+        n_traced = len(tracevars)
+        n_global = len(extra_global)
+        n_ind    = numpy.sum([len(a) for a in extra_ind])
+        n_dive   = numpy.sum([len(a) for a in extra_dive])
+        n_sgl   = numpy.sum([len(a) for a in extra_sgl])
+
+        print('traced:         {}'.format(n_traced))
+        print('extra globals:  {}'.format(n_global))
+        print('extra ind:      {}'.format(n_ind))
+        print('extra dive:     {}'.format(n_dive))
+        print('extra sgl:      {}'.format(n_sgl))
+        print('total extra:    {}'.format(sum([n_global, n_ind, n_dive, n_sgl])))
 
         # Create backend for storing trace output
         backend = pymc3.backends.text.Text(trace_name, vars=tracevars)
@@ -272,7 +313,8 @@ def run_mcmc(exps, sgls, dives, trace_name, iterations, njobs):
         # 24k iterations
         # 3 parallel jobs, similar to multiple chains
         # remaining posterier samples downsampled by factor of 36
-        trace = pymc3.sample(iterations, njobs=njobs, trace=backend)
+        trace = pymc3.sample(draws=n_iter, init=init, n_init=n_init, njobs=njobs,
+                             trace=backend)
 
         pymc3.summary(trace, varnames=varnames[:5])
 
@@ -293,4 +335,4 @@ if __name__ == '__main__':
     glide_path = paths['glide']
     mcmc_path  = paths['mcmc']
 
-    run_mcmc_all(root_path, glide_path, mcmc_path)
+    run_mcmc_all(root_path, glide_path, mcmc_path, debug=True)
