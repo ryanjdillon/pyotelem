@@ -50,79 +50,96 @@ def filter_sgls(n_samples, exp_ind, sgls, max_pitch, min_depth,
     return data_sgl_mask, sgls_mask
 
 
-def compile_experiments(root_path, glide_path):
+def compile_experiments(root_path, glide_path, manual_selection=True):
     '''Compile data from experiments into three dataframes for MCMC input'''
     import numpy
     import os
     import pandas
 
+    import utils
+
     sgls_filename = 'glide_sgls.p'
     sgls_mask_filename = 'glide_sgls_mask.npy'
 
-    # Empty lists for appending IDs of each experiment
-    exp_ids = list()
-    animal_ids = list()
-    tag_ids = list()
+    # List of paths to process
+    exp_paths = list()
 
-    print('Compiling glide analysis output to single files for model input.')
+    # Empty lists for appending IDs of each experiment
+    exp_ids    = list()
+    animal_ids = list()
+    tag_ids    = list()
+
+    print('\nCompiling glide analysis output to single files for model input.\n')
 
     # Iterate through experiment directories in glide analysis path
     first_iter = True
+
+    # Generate list of possible paths to process in glide directory
     glide_data_paths_found = False
     for exp_path in os.listdir(os.path.join(root_path, glide_path)):
-
         glide_data_path = os.path.join(root_path, glide_path, exp_path)
-
-        if os.path.isdir(glide_data_path):# & ('Control' in glide_data_path):
-
-            print('Processing {}'.format(exp_path))
+        if os.path.isdir(glide_data_path):
+            exp_paths.append(exp_path)
             glide_data_paths_found = True
 
-            # Get experiment/animal ID from directory name
-            exp_id    = exp_path
-            tag_id    = exp_id.split('_')[2]
-            animal_id = exp_id.split('_')[3]
-
-            # Append experiment/animal id to list for `exps` df creation
-            exp_ids.append(exp_id)
-            animal_ids.append(animal_id)
-            tag_ids.append(tag_id)
-
-            # Read sgls dataframe, filter out only desired columns
-            sgls_path = os.path.join(glide_data_path, sgls_filename)
-            sgls_exp  = pandas.read_pickle(sgls_path)
-
-            # Filter with saved mask meeting criteria
-            # TODO pass filter routine as parameter to make more general
-            sgls_mask_path = os.path.join(glide_data_path, sgls_mask_filename)
-            sgls_mask      = numpy.load(sgls_mask_path)
-            sgls_exp       = sgls_exp[sgls_mask]
-
-            # Get unique dives in which all subglides occur
-            dive_ids_exp = numpy.unique(sgls_exp['dive_id'][:])
-            dives_exp = pandas.DataFrame(index=range(len(dive_ids_exp)))
-            dives_exp['dive_id'] = dive_ids_exp
-            # TODO read lung volume from file, or assign value here
-
-            # Add exp_id/animal_id fields
-            sgls_exp  = __add_ids_to_df(sgls_exp, exp_id)
-            dives_exp = __add_ids_to_df(dives_exp, exp_id)
-
-            # Append experiment sgl array to array with all exps to analyze
-            if first_iter is True:
-                first_iter = False
-                sgls_all   = sgls_exp
-                dives_all  = dives_exp
-            else:
-                sgls_all  = pandas.concat([sgls_all, sgls_exp], ignore_index = True)
-                dives_all = pandas.concat([dives_all, dives_exp], ignore_index = True)
-
-    # Throw exception if no glide paths found in passed directories
+    # Throw exception if no data found in glide path
     if not glide_data_paths_found:
         raise SystemError('No glide paths found, check input directories '
                           'for errors\n'
                           'root_path: {}\n'
                           'glide_path: {}\n'.format(root_path, glide_path))
+
+    # Run manual input data path selection, else process all present paths
+    if manual_selection:
+        msg = 'path numbers to compile to single dataset.\n'
+        process_ind = utils.get_dir_indices(msg, exp_paths)
+    else:
+        process_ind = range(len(exp_paths))
+
+    # Process user selected paths
+    for i in process_ind:
+        exp_path = exp_paths[i]
+
+        print('Processing {}'.format(exp_path))
+
+        # Get experiment/animal ID from directory name
+        exp_id    = exp_path
+        tag_id    = exp_id.split('_')[2]
+        animal_id = exp_id.split('_')[3]
+
+        # Append experiment/animal id to list for `exps` df creation
+        exp_ids.append(exp_id)
+        animal_ids.append(animal_id)
+        tag_ids.append(tag_id)
+
+        # Read sgls dataframe, filter out only desired columns
+        sgls_path = os.path.join(glide_data_path, sgls_filename)
+        sgls_exp  = pandas.read_pickle(sgls_path)
+
+        # Filter with saved mask meeting criteria
+        # TODO pass filter routine as parameter to make more general
+        sgls_mask_path = os.path.join(glide_data_path, sgls_mask_filename)
+        sgls_mask      = numpy.load(sgls_mask_path)
+        sgls_exp       = sgls_exp[sgls_mask]
+
+        # Get unique dives in which all subglides occur
+        dive_ids_exp = numpy.unique(sgls_exp['dive_id'][:])
+        dives_exp = pandas.DataFrame(index=range(len(dive_ids_exp)))
+        dives_exp['dive_id'] = dive_ids_exp
+        # TODO read lung volume from file, or assign value here
+
+        # Add exp_id/animal_id fields
+        sgls_exp  = __add_ids_to_df(sgls_exp, exp_id)
+        dives_exp = __add_ids_to_df(dives_exp, exp_id)
+
+        # Append experiment sgl array to array with all exps to analyze
+        if first_iter is True:
+            first_iter = False
+            sgls_all   = sgls_exp
+            dives_all  = dives_exp
+        else:
+            sgls_all  = pandas.concat([sgls_all, sgls_exp], ignore_index = True)
+            dives_all = pandas.concat([dives_all, dives_exp], ignore_index = True)
 
     # Create experiments dataframe
     exps_all = pandas.DataFrame(index=range(len(exp_ids)))
@@ -182,8 +199,8 @@ def read_bodycondition(filename):
     return bc
 
 
-def create_ann_inputs(root_path, glide_path, ann_path, bc_path, bc_filename,
-        sgl_cols):
+def create_ann_inputs(root_path, acc_path, glide_path, ann_path, bc_path, bc_filename,
+        sgl_cols, manual_selection=True):
     '''Compile all experiment data for ann model input'''
     import numpy
     import os
@@ -196,23 +213,40 @@ def create_ann_inputs(root_path, glide_path, ann_path, bc_path, bc_filename,
         '''Add column `col_name` dataframe with values'''
         return df.assign(**{col_name:values})
 
-    def insert_bc_col_to_sgls(sgls, bc, col_name):
+    def density_mod(mod, mod_n):
+        '''Calculate density modification given type and number of blocks'''
+        # Density of experimental blocks (kg/L)
+        # dims: 15x4x3cm, neutral blocks ~density of seawater
+        mod_dens = {'float':0.189, 'weight':3.55, 'neutral':0, 'control':0}
+        return mod_dens[mod]*mod_n
+
+    def insert_bc_col_to_sgls(root_path, acc_path, sgls, bc, col_name):
         '''Insert bodycondition from nearest date in bc to sgls dataframes'''
         import datetime
         import numpy
+        import tqdm
+
+        from rjdtools import yaml_tools
 
         # Create empty column for body condition target values
         sgls = add_col(sgls, col_name, numpy.full(len(sgls), numpy.nan))
 
         # Loop through rows in `sgls`
-        for i in sgls.index:
+        for i in tqdm.tqdm(sgls.index):
+
+            # Get experimental treatment for adding density of blocks
+            exp_id = sgls['exp_id'][i]
+            meta_path = os.path.join(root_path, acc_path, exp_id, 'meta.yaml')
+            meta = yaml_tools.read_yaml(meta_path)
+            mod   = meta['mod']   # type of block
+            mod_n = meta['mod_n'] # number of blocks
 
             # Get datetime from subglide `exp_id`
-            date_str = (sgls['exp_id'][i].split('_'))[0]
+            date_str = (exp_id.split('_'))[0]
             sgl_dt = datetime.datetime.strptime(date_str, '%Y%m%d')
 
             # Get `bc` mask from subglide's animal ID in `exp_id`
-            animal = (sgls['exp_id'][i].split('_')[3]).lower()
+            animal = (exp_id.split('_')[3]).lower()
             bc_animal_mask = bc['animal'] == animal
 
             # Make sure an entry for this animal exists in body condition data
@@ -227,8 +261,9 @@ def create_ann_inputs(root_path, glide_path, ann_path, bc_path, bc_filename,
             bc_idx = numpy.argmax(bc['date'] == bc_dt)
 
             # Write body condition value to `sgl` subglide row
-            print(col_name, bc_idx, i)
-            sgls[col_name][i] = bc[col_name][bc_idx]
+            # add density modification from attached blocks
+            # TODO review
+            sgls[col_name].loc[i] = bc[col_name].iloc[bc_idx] + density_mod(mod, mod_n)
 
         return sgls
 
@@ -243,16 +278,19 @@ def create_ann_inputs(root_path, glide_path, ann_path, bc_path, bc_filename,
     sgls = sgls_all[sgl_cols]
 
     # Add column with body condition target values to `sgls`
-    sgls = insert_bc_col_to_sgls(sgls, bc, 'density')
+    sgls = insert_bc_col_to_sgls(root_path, acc_path, sgls, bc, 'density')
+
+    # TODO normalize input fields
 
     # Save output
-    sgls_all.to_pickle(os.path.join(root_path, mcmc_path, 'sgls_all.p'))
+    sgls_all.to_pickle(os.path.join(root_path, ann_path, 'sgls_all.p'))
     #exps_all.to_pickle(os.path.join(root_path, mcmc_path, 'exps_all.p'))
     #dives_all.to_pickle(os.path.join(root_path, mcmc_path, 'dives_all.p'))
 
-    return
+    return sgls
 
-def create_mcmc_inputs(root_path, glide_path, mcmc_path, sgl_cols):
+def create_mcmc_inputs(root_path, glide_path, mcmc_path, sgl_cols,
+        manual_selection=True):
     '''Add MCMC distribution fields to each MCMC input dataframe'''
     import os
     import numpy
@@ -261,7 +299,8 @@ def create_mcmc_inputs(root_path, glide_path, mcmc_path, sgl_cols):
     # for each input configuration, to generate inputs for model
 
     # Compile subglide inputs for all experiments
-    exps_all, sgls_all, dives_all = compile_experiments(root_path, glide_path)
+    exps_all, sgls_all, dives_all = compile_experiments(root_path, glide_path,
+            manual_selection=manual_selection)
 
     # Desired columns to extract from subglide analysis output
     sgls_all = sgls_all[sgl_cols]
@@ -296,6 +335,7 @@ if __name__ == '__main__':
 
     paths      = yaml_tools.read_yaml('./iopaths.yaml')
     root_path  = paths['root']
+    acc_path   = paths['acc']
     glide_path = paths['glide']
     mcmc_path  = paths['mcmc']
     ann_path   = paths['ann']
@@ -316,6 +356,7 @@ if __name__ == '__main__':
 
     bc_filename = 'bc_no-tag_skinny_yellow.p'
     ann_exps, ann_sgls, ann_dives = create_ann_inputs(root_path,
+                                                      acc_path,
                                                       glide_path,
                                                       ann_path,
                                                       bc_path,
