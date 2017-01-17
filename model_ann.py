@@ -1,6 +1,13 @@
 
+def n_hidden(n_input, n_output, n_train_samples, alpha):
+    # http://stats.stackexchange.com/a/136542/16938
+    # Alpha is scaling factor between 2-10
+    n_hidden = n_samples/(alpha*(n_input+n_output))
+    return n_hidden
+
 def split_data(df, feature_cols, target_col, valid_frac):
     '''Load and randomly sample data to `train`, `validation`, `test` sets'''
+    import numpy
     import pandas
     from sklearn.preprocessing import normalize
 
@@ -13,25 +20,25 @@ def split_data(df, feature_cols, target_col, valid_frac):
     # http://stats.stackexchange.com/a/19051/16938
     valid_split = len(df_test)//2
 
-    # Extract to numpy arrays
-    train_array  = (df_train[feature_cols].values).astype(float)
-    train_labels = (df_train[target_col].values).astype(float)
+    # Extract to numpy arrays - typecast to float32
+    train_array  = (df_train[feature_cols].values)
+    train_labels = (df_train[target_col].values)
 
-    valid_array  = (df_test[feature_cols][:valid_split].values).astype(float)
-    valid_labels = (df_test[target_col][:valid_split].values).astype(float)
+    valid_array  = (df_test[feature_cols][:valid_split].values)
+    valid_labels = (df_test[target_col][:valid_split].values)
 
-    test_array  = (df_test[feature_cols][valid_split:].values).astype(float)
-    test_labels = (df_test[target_col][valid_split:].values).astype(float)
+    test_array  = (df_test[feature_cols][valid_split:].values)
+    test_labels = (df_test[target_col][valid_split:].values)
 
     # Normalize inputs
-    X_train = normalize(train_array, norm='l2', axis=1)
-    X_valid = normalize(valid_array, norm='l2', axis=1)
-    X_test  = normalize(test_array, norm='l2', axis=1)
+    X_train = normalize(train_array, norm='l2', axis=1).astype('f4')
+    X_valid = normalize(valid_array, norm='l2', axis=1).astype('f4')
+    X_test  = normalize(test_array, norm='l2', axis=1).astype('f4')
 
     # Normalize outputs
-    y_train = normalize(train_labels, norm='l2', axis=1)
-    y_valid = normalize(valid_labels, norm='l2', axis=1)
-    y_test  = normalize(test_labels, norm='l2', axis=1)
+    y_train = (normalize(train_labels, norm='l2', axis=1)).astype('f4')
+    y_valid = (normalize(valid_labels, norm='l2', axis=1)).astype('f4')
+    y_test  = (normalize(test_labels, norm='l2', axis=1)).astype('f4')
 
     # Make into tuple (features, label)
     # Pivot 1-D target value arrays to match 0dim of X
@@ -79,10 +86,13 @@ def create_algorithm(train, valid, config, n_features, n_targets):
     import theanets
 
     # Build neural net with defined configuration
-    net = theanets.Classifier([n_features, config['hidden_nodes'],
-                               n_targets])
+    #net = theanets.Classifier([n_features, config['hidden_nodes'],
+    #                           n_targets])
+    # User 'mse' as loss function
+    net = theanets.Regressor(layers=[n_features, config['hidden_nodes'], n_targets])
 
     # Train the model using SGD with momentum.
+    # user net.itertrain() for return monitors to plot
     net.train(train, valid, algo=config['algorithm'],
                             hidden_l1=config['l1'],
                             weight_l2=config['l2'],
@@ -132,11 +142,12 @@ def tune_net(train, valid, test, configs, n_features, n_targets):
     # Classify features against label/target value to get accuracy
     # where `test` is a tuple with test (features, label)
     test_accuracy = best_net.score(test[0], test[1])
+    print('tune test accuracy: {}'.format(test_accuracy))
 
     # Print confusion matrices for train and test
-    valid_matrix = get_confusion_matrices(best_net, train, test)
+    #valid_matrix = get_confusion_matrices(best_net, train, test)
 
-    return tune_results, test_accuracy, valid_matrix
+    return tune_results, test_accuracy#, valid_matrix
 
 
 def truncate_data(data, frac):
@@ -186,11 +197,12 @@ def test_dataset_size(best_config, train, valid, test, subset_fractions):
     # Classify features against label/target value to get accuracy
     # where `test` is a tuple with test (features, label)
     test_accuracy = best_net.score(test[0], test[1])
+    print('dataset size test accuracy: {}'.format(test_accuracy))
 
     # Print confusion matrices for train and test
-    valid_matrix = get_confusion_matrices(best_net, train, test)
+    #valid_matrix = get_confusion_matrices(best_net, train, test)
 
-    return dataset_results, test_accuracy, valid_matrix
+    return dataset_results, test_accuracy#, valid_matrix
 
 
 if __name__ == '__main__':
@@ -226,7 +238,7 @@ if __name__ == '__main__':
     theano.config.compute_test_value = 'off'
 
     # Input
-    debug = True # TODO remove
+    debug = False # TODO remove
     ann_cfg_fname = 'cfg_ann.yaml'
     ann_cfg = yaml_tools.read_yaml(ann_cfg_fname)
 
@@ -265,8 +277,6 @@ if __name__ == '__main__':
     feature_cols = ['mean_speed', 'total_depth_change', 'mean_sin_pitch',
                     'mean_swdensity', 'SE_speed_vs_time']
     target_col = 'density'
-    n_features = len(feature_cols)
-    n_targets = len(numpy.unique(sgls[target_col]))
     valid_frac = 0.8
 
     print('Split and normalize input/output data')
@@ -286,9 +296,13 @@ if __name__ == '__main__':
     configs = get_configs(tune_params)
 
     # Cycle through configurations storing configuration, net in `tune_results`
-    tune_results, tune_accuracy, valid_matrix = tune_net(train, valid, test,
-                                                         configs, n_features,
-                                                         n_targets)
+    n_features = len(feature_cols)
+    n_targets = len(numpy.unique(train[1]))
+    print('features: {}'.format(n_features))
+    print('targets: {}'.format(n_targets))
+    n_targets = 1
+    tune_results, tune_accuracy = tune_net(train, valid, test, configs,
+                                           n_features, n_targets)
 
     # Get neural net configuration with best accuracy
     best_config = get_best(tune_results, 'config')
@@ -298,10 +312,8 @@ if __name__ == '__main__':
     # Get new randomly sorted and subsetted datasets to test effect of dataset_size
     # i.e. - a dataset with the first `subset_fraction` of samples.
     subset_fractions = [0.4, 0.7, 1.0]
-    dataset_results, data_accuracy, valid_matrix = test_dataset_size(best_config,
-                                                                  train, valid,
-                                                                  test,
-                                                                  subset_fractions)
+    dataset_results, data_accuracy = test_dataset_size(best_config, train,
+                                                       valid, test, subset_fractions)
 
     print('Test data accuracy (Configuration tuning): {}'.format(tune_accuracy))
     print('Test data accuracy (Datasize test):        {}'.format(data_accuracy))
