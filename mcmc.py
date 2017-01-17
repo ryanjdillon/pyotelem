@@ -24,6 +24,10 @@ Inter-dive and inter-individual variance of Gamma distributions
 [1e-06, 200] on the scale of the standard deviation, as recommended in Gelmans
 (2006).
 
+24k iterations
+3 parallel jobs, similar to multiple chains
+remaining posterier samples downsampled by factor of 36
+
 Convergence was assessed for each parameter using trace history and
 Brooks-Gelman_rubin diagnostic plots (Brooks and Gelman, 1998), DIC for
 model selection.
@@ -77,10 +81,10 @@ def run_mcmc_all(root_path, glide_path, mcmc_path, manual_selection=True,
     import utils_data
 
     now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    n_init = 1000
+    n_init = 10000
     init   = 'advi_map'
-    n_iter = 1000
-    njobs  = 2
+    n_iter = 24000
+    njobs  = None
     trace_name = '{}_mcmc_iter{}_njobs{}'.format(now, n_iter, njobs)
 
     trace_path = os.path.join(mcmc_path, trace_name)
@@ -97,6 +101,8 @@ def run_mcmc_all(root_path, glide_path, mcmc_path, manual_selection=True,
         print('Debug on. Running {}/{} subglides'.format(n_samples, len(sgls)))
         sgls = sgls.sample(n=n_samples)
 
+    # TODO fix this trace name stuff
+    trace_name = os.path.join(root_path, trace_path)
     # Run model
     results = run_mcmc(exps, sgls, dives, trace_name, n_iter=n_iter, init=init,
                        n_init=n_init, njobs=njobs)
@@ -206,12 +212,12 @@ def run_mcmc(exps, sgls, dives, trace_name, n_iter, init=None, n_init=None,
         bd_g_var.name = '$\sigma_{BodyDensity}^{2}$'
 
         # Mass-specific volume of air (average across dives) (ml kg-1)
-        vair_g = pymc3.Uniform(name='Vair_{global}', lower=0.01, upper=100)
+        vair_g = pymc3.Uniform(name='$Vair_{global}$', lower=0.01, upper=100)
         vair_g_SD  = pymc3.Uniform(name='$\sigma_{Vair}$', lower=1e-6, upper=200)
         vair_g_var = vair_g_SD**2
         vair_g_var.name = '$\sigma_{Vair}^{2}$'
 
-        # INDIVIDUAL-SPECIFIC PARAMETERS
+        ## INDIVIDUAL-SPECIFIC PARAMETERS
 
         # Individual Drag
         CdAm_indv_shape = (CdAm_g ** 2) / CdAm_g_var
@@ -294,7 +300,8 @@ def run_mcmc(exps, sgls, dives, trace_name, n_iter, init=None, n_init=None,
 
 
         # Define which vars are to be sampled from
-        tracevars = [compr, CdAm_g, bd_g, vair_g, CdAm_indv, bd_indv, vair_dive, a]
+        tracevars = [compr, CdAm_g, bd_g, vair_g, a,
+                    CdAm_indv, bd_indv, vair_dive]
 
         extra_global = [CdAm_g_var, CdAm_g_SD,
                         bd_g_var, bd_g_SD,
@@ -307,6 +314,7 @@ def run_mcmc(exps, sgls, dives, trace_name, n_iter, init=None, n_init=None,
 
         extra_sgl  = [a_mu,]
 
+        tracevars = tracevars + extra_global + extra_indv + extra_dive + extra_sgl
         # Collect var names
         #TODO remove [[tracevars.append(v) for v in a] for a in add_vars]
         varnames = [v.name for v in tracevars]
@@ -328,11 +336,21 @@ def run_mcmc(exps, sgls, dives, trace_name, n_iter, init=None, n_init=None,
         # Create backend for storing trace output
         backend = pymc3.backends.text.Text(trace_name, vars=tracevars)
 
-        # 24k iterations
-        # 3 parallel jobs, similar to multiple chains
-        # remaining posterier samples downsampled by factor of 36
-        trace = pymc3.sample(draws=n_iter, init=init, n_init=n_init, njobs=njobs,
-                             trace=backend)
+        # ADVI
+        #v_params = pymc3.variational.advi(n=n_init)
+        #trace = pymc3.variational.sample_vp(v_params, draws=n_iter)
+
+        # Metropolis
+        start = pymc3.find_MAP()
+        step = pymc3.Metropolis()
+        trace = pymc3.sample(draws=n_iter, step=step, start=start, init=init,
+        n_init=n_init, trace=backend)
+
+        # NUTS
+        #start = pymc3.find_MAP()
+        #step = pymc3.NUTS()
+        #trace = pymc3.sample(draws=n_iter, step=step, start=start, init=init,
+        #                     n_init=n_init, trace=backend)
 
         pymc3.summary(trace, varnames=varnames[:5])
 
@@ -353,4 +371,4 @@ if __name__ == '__main__':
     glide_path = paths['glide']
     mcmc_path  = paths['mcmc']
 
-    run_mcmc_all(root_path, glide_path, mcmc_path, debug=True)
+    run_mcmc_all(root_path, glide_path, mcmc_path, debug=False)
