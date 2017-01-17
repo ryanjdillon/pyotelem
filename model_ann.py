@@ -1,11 +1,8 @@
 
-def load_handwriting(feature_type, label_type, valid_frac):
+def split_data(df, feature_cols, target_col, valid_frac):
     '''Load and randomly sample data to `train`, `validation`, `test` sets'''
     import pandas
-
-    filename = './handwriting.csv'
-
-    df = pandas.read_csv(filename, header=None)
+    from sklearn.preprocessing import normalize
 
     # Sample into train and validation sets
     df_train  = df.sample(frac=valid_frac)
@@ -14,22 +11,33 @@ def load_handwriting(feature_type, label_type, valid_frac):
 
     # Split valid to valid & test sets
     # http://stats.stackexchange.com/a/19051/16938
-    valid_split = len(df_test)/2
+    valid_split = len(df_test)//2
 
     # Extract to numpy arrays
-    train_array  = (df_train.ix[:,:61].values).astype(feature_type)
-    train_labels = (df_train.ix[:,62].values).astype(label_type)
+    train_array  = (df_train[feature_cols].values).astype(float)
+    train_labels = (df_train[target_col].values).astype(float)
 
-    valid_array  = (df_test.ix[:valid_split,:61].values).astype(feature_type)
-    valid_labels = (df_test.ix[:valid_split,62].values).astype(label_type)
+    valid_array  = (df_test[feature_cols][:valid_split].values).astype(float)
+    valid_labels = (df_test[target_col][:valid_split].values).astype(float)
 
-    test_array  = (df_test.ix[valid_split:,:61].values).astype(feature_type)
-    test_labels = (df_test.ix[valid_split:,62].values).astype(label_type)
+    test_array  = (df_test[feature_cols][valid_split:].values).astype(float)
+    test_labels = (df_test[target_col][valid_split:].values).astype(float)
+
+    # Normalize inputs
+    X_train = normalize(train_array, norm='l2', axis=1)
+    X_valid = normalize(valid_array, norm='l2', axis=1)
+    X_test  = normalize(test_array, norm='l2', axis=1)
+
+    # Normalize outputs
+    y_train = normalize(train_labels, norm='l2', axis=1)
+    y_valid = normalize(valid_labels, norm='l2', axis=1)
+    y_test  = normalize(test_labels, norm='l2', axis=1)
 
     # Make into tuple (features, label)
-    train = train_array, train_labels
-    valid = valid_array, valid_labels
-    test = test_array, test_labels
+    # Pivot 1-D target value arrays to match 0dim of X
+    train = X_train, y_train.T
+    valid = X_valid, y_valid.T
+    test  =  X_test,  y_test.T
 
     return train, valid, test
 
@@ -185,24 +193,6 @@ def test_dataset_size(best_config, train, valid, test, subset_fractions):
     return dataset_results, test_accuracy, valid_matrix
 
 
-# TODO differs from net.score() result
-#def calc_accuracy(valid_matrix):
-#    '''Cacluate accuracy from confusion matrix results'''
-#
-#    accuracy = dict()
-#    tot_true = 0
-#    for i in range(matrix.shape[0]):
-#        n_true = valid_matrix[i,i]
-#        tot_i = sum(valid_matrix[:,i])
-#        tot_true += n_true
-#        #nF = sum(valid_matrix[:,i][:i])+sum(valid_matrix[:,i][(i+1):])
-#        accuracy[i] = float(n_true)/float(tot_i)
-#
-#    accuracy['tot'] = float(tot_true)/float(sum(sum(valid_matrix)))
-#
-#    return accuracy
-
-
 if __name__ == '__main__':
     # The following loads the handwriting dataset, tunes different nets with
     # varying configuration, and then tests the effect of dataset size.
@@ -219,49 +209,78 @@ if __name__ == '__main__':
     # TODO make following script a routine, debug as option
     # convert npy arrays to pandas with column labels
 
-    # TODO make output directory, named dt, containing ann_cfg copy
-
     # TODO plots?
 
     # TODO add starttime, finishtime, git/versions
     from collections import OrderedDict
     import datetime
     import climate
+    import numpy
     import os
+    import theano
 
+    import utils_data
     from rjdtools import yaml_tools
 
     climate.enable_default_logging()
+    theano.config.compute_test_value = 'off'
 
     # Input
-    debug = True
+    debug = True # TODO remove
     ann_cfg_fname = 'cfg_ann.yaml'
     ann_cfg = yaml_tools.read_yaml(ann_cfg_fname)
-    ann_path = './'
-
-    train, valid, test = load_handwriting('f','i', 0.8)
-
-    # Load data with random selection for validation
-    # TODO automate from list of parameters to use as features, targets
-    n_features = 62
-    n_targets = 10
 
     # Output filenames
     tune_fname = 'results_tuning.p'
     dataset_size_fname = 'results_dataset_size.p'
 
+    # Define paths
+    paths = yaml_tools.read_yaml('./iopaths.yaml')
+    root_path  = paths['root']
+    acc_path   = paths['acc']
+    glide_path = paths['glide']
+    ann_path   = paths['ann']
+    bc_path    = paths['bodycondition']
+    bc_filename = 'bc_no-tag_skinny_yellow.p'
+
     # Define output directory and creat if does not exist
     now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     results_path = 'theanets_{}'.format(now)
-
-    out_path = os.path.join(ann_path, results_path)
+    out_path = os.path.join(root_path, ann_path, results_path)
     os.makedirs(out_path, exist_ok=True)
+
+    print('Compile output from glides into ANN input')
+
+    # Compile output from glides into single input dataframe
+    sgl_cols = ['exp_id', 'mean_speed', 'total_depth_change',
+                'mean_sin_pitch', 'mean_swdensity', 'SE_speed_vs_time']
+    sgls = utils_data.create_ann_inputs(root_path, acc_path, glide_path,
+                                        ann_path, bc_path, bc_filename,
+                                        sgl_cols, manual_selection=True)
+
+    # TODO review outcome of this
+    sgls = sgls.dropna()
+
+    # Dimensions of Input and output layers
+    feature_cols = ['mean_speed', 'total_depth_change', 'mean_sin_pitch',
+                    'mean_swdensity', 'SE_speed_vs_time']
+    target_col = 'density'
+    n_features = len(feature_cols)
+    n_targets = len(numpy.unique(sgls[target_col]))
+    valid_frac = 0.8
+
+    print('Split and normalize input/output data')
+
+    # Split data with random selection for validation
+    train, valid, test = split_data(sgls, feature_cols, target_col, valid_frac)
 
     # Define parameter set to tune neural net with
     if debug is True:
         tune_params = ann_cfg['debug']
     else:
         tune_params = ann_cfg['full']
+
+    print('Tune netork configuration')
 
     # Get all dict of all configuration permutations of params in `tune_params`
     configs = get_configs(tune_params)
@@ -273,6 +292,8 @@ if __name__ == '__main__':
 
     # Get neural net configuration with best accuracy
     best_config = get_best(tune_results, 'config')
+
+    print('Run percentage of datasize tests')
 
     # Get new randomly sorted and subsetted datasets to test effect of dataset_size
     # i.e. - a dataset with the first `subset_fraction` of samples.
