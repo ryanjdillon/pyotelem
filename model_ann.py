@@ -5,11 +5,22 @@ def n_hidden(n_input, n_output, n_train_samples, alpha):
     n_hidden = n_samples/(alpha*(n_input+n_output))
     return n_hidden
 
-def split_data(df, feature_cols, target_col, valid_frac):
+def split_data(df, feature_cols, target_col, valid_frac, n_classes):
     '''Load and randomly sample data to `train`, `validation`, `test` sets'''
     import numpy
     import pandas
     from sklearn.preprocessing import normalize
+
+    # Bin outputs
+    mod = 5
+    n_classes = 5
+    ymin =  df[target_col].min()
+    ymax =  df[target_col].max()
+    mod = (ymax - ymin)/n_classes/4
+    bin_min = ymin - mod
+    bin_max = ymax + mod
+    bins = numpy.linspace(bin_min, bin_max, n_classes)
+    df['y_binned'] = numpy.digitize(df[target_col], bins)
 
     # Sample into train and validation sets
     df_train  = df.sample(frac=valid_frac)
@@ -22,31 +33,31 @@ def split_data(df, feature_cols, target_col, valid_frac):
 
     # Extract to numpy arrays - typecast to float32
     train_array  = (df_train[feature_cols].values)
-    train_labels = (df_train[target_col].values)
+    train_labels = (df_train['y_binned'].values)
 
     valid_array  = (df_test[feature_cols][:valid_split].values)
-    valid_labels = (df_test[target_col][:valid_split].values)
+    valid_labels = (df_test['y_binned'][:valid_split].values)
 
     test_array  = (df_test[feature_cols][valid_split:].values)
-    test_labels = (df_test[target_col][valid_split:].values)
+    test_labels = (df_test['y_binned'][valid_split:].values)
 
     # Normalize inputs
     X_train = normalize(train_array, norm='l2', axis=1).astype('f4')
     X_valid = normalize(valid_array, norm='l2', axis=1).astype('f4')
     X_test  = normalize(test_array, norm='l2', axis=1).astype('f4')
 
-    # Normalize outputs
-    y_train = (normalize(train_labels, norm='l2', axis=1)).astype('f4')
-    y_valid = (normalize(valid_labels, norm='l2', axis=1)).astype('f4')
-    y_test  = (normalize(test_labels, norm='l2', axis=1)).astype('f4')
+    ## Normalize outputs
+    #y_train = (normalize(train_labels, norm='l2', axis=1)).astype('f4')
+    #y_valid = (normalize(valid_labels, norm='l2', axis=1)).astype('f4')
+    #y_test  = (normalize(test_labels, norm='l2', axis=1)).astype('f4')
 
     # Make into tuple (features, label)
     # Pivot 1-D target value arrays to match 0dim of X
-    train = X_train, y_train.T
-    valid = X_valid, y_valid.T
-    test  =  X_test,  y_test.T
+    train = X_train, train_labels.astype('i4')
+    valid = X_valid, valid_labels.astype('i4')
+    test  = X_test, test_labels.astype('i4')
 
-    return train, valid, test
+    return train, valid, test, bins
 
 
 def get_confusion_matrices(net, train, valid):
@@ -86,10 +97,10 @@ def create_algorithm(train, valid, config, n_features, n_targets):
     import theanets
 
     # Build neural net with defined configuration
-    #net = theanets.Classifier([n_features, config['hidden_nodes'],
-    #                           n_targets])
+    net = theanets.Classifier([n_features, config['hidden_nodes'],
+                               n_targets])
     # User 'mse' as loss function
-    net = theanets.Regressor(layers=[n_features, config['hidden_nodes'], n_targets])
+    #net = theanets.Regressor(layers=[n_features, config['hidden_nodes'], n_targets])
 
     # Train the model using SGD with momentum.
     # user net.itertrain() for return monitors to plot
@@ -278,11 +289,13 @@ if __name__ == '__main__':
                     'mean_swdensity', 'SE_speed_vs_time']
     target_col = 'density'
     valid_frac = 0.8
+    n_classes = 5
 
     print('Split and normalize input/output data')
 
     # Split data with random selection for validation
-    train, valid, test = split_data(sgls, feature_cols, target_col, valid_frac)
+    train, valid, test, bins = split_data(sgls, feature_cols, target_col, valid_frac,
+                                          n_classes=n_classes)
 
     # Define parameter set to tune neural net with
     if debug is True:
@@ -297,10 +310,10 @@ if __name__ == '__main__':
 
     # Cycle through configurations storing configuration, net in `tune_results`
     n_features = len(feature_cols)
-    n_targets = len(numpy.unique(train[1]))
+    n_targets = n_classes
     print('features: {}'.format(n_features))
     print('targets: {}'.format(n_targets))
-    n_targets = 1
+    #n_targets = 1
     tune_results, tune_accuracy = tune_net(train, valid, test, configs,
                                            n_features, n_targets)
 
