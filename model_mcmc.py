@@ -24,6 +24,10 @@ Inter-dive and inter-individual variance of Gamma distributions
 [1e-06, 200] on the scale of the standard deviation, as recommended in Gelmans
 (2006).
 
+24k iterations
+3 parallel jobs, similar to multiple chains
+remaining posterier samples downsampled by factor of 36
+
 Convergence was assessed for each parameter using trace history and
 Brooks-Gelman_rubin diagnostic plots (Brooks and Gelman, 1998), DIC for
 model selection.
@@ -77,10 +81,10 @@ def run_mcmc_all(root_path, glide_path, mcmc_path, manual_selection=True,
     import utils_data
 
     now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    n_init = 1000
+    n_init = 10000
     init   = 'advi_map'
-    n_iter = 1000
-    njobs  = 2
+    n_iter = 24000
+    njobs  = None
     trace_name = '{}_mcmc_iter{}_njobs{}'.format(now, n_iter, njobs)
 
     trace_path = os.path.join(mcmc_path, trace_name)
@@ -97,6 +101,8 @@ def run_mcmc_all(root_path, glide_path, mcmc_path, manual_selection=True,
         print('Debug on. Running {}/{} subglides'.format(n_samples, len(sgls)))
         sgls = sgls.sample(n=n_samples)
 
+    # TODO fix this trace name stuff
+    trace_name = os.path.join(root_path, trace_path)
     # Run model
     results = run_mcmc(exps, sgls, dives, trace_name, n_iter=n_iter, init=init,
                        n_init=n_init, njobs=njobs)
@@ -104,18 +110,39 @@ def run_mcmc_all(root_path, glide_path, mcmc_path, manual_selection=True,
     return None
 
 
+def theanotype(a):
+    import theano
+    import numpy
+
+    x = theano.shared(numpy.asarray(a, theano.config.floatX), borrow=True)
+    #x = x.flatten()
+    #TODO remove
+    #x = theano.tensor.stack(theano.tensor.cast(x, 'float32'), axis=0)
+    #x = theano.tensor.cast(x, 'float32')
+
+    return x
+
 def run_mcmc(exps, sgls, dives, trace_name, n_iter, init=None, n_init=None,
         njobs=None):
 
 
     def drag_with_speed(CdAm, dsw, mean_speed):
         '''Calculate drag on swim speed, Term 1 of hydrodynamic equation'''
+        import theano.tensor as T
+        dsw = theanotype(dsw)
+        mean_speed = theanotype(mean_speed)
         return -0.5 * CdAm / 1e6 * dsw * mean_speed**2
 
 
     def non_gas_body_density(bdensity, depth, dsw, sin_pitch, compr, atm_pa, g):
         '''Calculate non-gas body density, Term 2 of hydrodynamic equation'''
+        import theano.tensor as T
+        depth = theanotype(depth)
+        dsw = theanotype(dsw)
+        sin_pitch = theanotype(sin_pitch)
 
+        #term = (1 + 0.1*depth) * atm_pa * 1e-9
+        #term2 = 1 - compr * term
         bdensity_tissue = bdensity / (1 - compr * (1 + 0.1*depth) * atm_pa * 1e-9)
 
         return (dsw / bdensity_tissue - 1) * g * sin_pitch
@@ -123,6 +150,11 @@ def run_mcmc(exps, sgls, dives, trace_name, n_iter, init=None, n_init=None,
 
     def gas_per_unit_mass(vair, depth, dsw, sin_pitch, p_air, g):
         '''Calculate gas per unit mass, Term 3 of hydrodynamic equation'''
+        import theano.tensor as T
+        depth = theanotype(depth)
+        dsw = theanotype(dsw)
+        sin_pitch = theanotype(sin_pitch)
+
         term3 =  vair / 1e6 * g * sin_pitch * (dsw - p_air * \
                  (1 + 0.1*depth)) * 1 / (1 + 0.1*depth)
         return term3
@@ -167,9 +199,9 @@ def run_mcmc(exps, sgls, dives, trace_name, n_iter, init=None, n_init=None,
 
         # Individual-average drag term (Cd*A*m^-1; x10^-6 m^2 kg-1)
         # Precision 1/variance; SD=2 => precision = 1/2^2 = 0.25
-        CdAm_g = bounded_normal('$CdAm_{global}$', mu=10, sd=0.25)
-        CdAm_g_SD  = pymc3.Uniform('$\sigma_{CdAm$}', 1e-06, 200)
-        CdAm_g_var = CdAm_g_SD**2
+        CdAm_g          = bounded_normal('$CdAm_{global}$', mu=10, sd=0.25)
+        CdAm_g_SD       = pymc3.Uniform('$\sigma_{CdAm$}', 1e-06, 200)
+        CdAm_g_var      = CdAm_g_SD**2
         CdAm_g_var.name = '$\sigma_{CdAm}^{2}$'
 
         # Individual-average body density (kg m-3)
@@ -180,141 +212,145 @@ def run_mcmc(exps, sgls, dives, trace_name, n_iter, init=None, n_init=None,
         bd_g_var.name = '$\sigma_{BodyDensity}^{2}$'
 
         # Mass-specific volume of air (average across dives) (ml kg-1)
-        vair_g = pymc3.Uniform(name='Vair_{global}', lower=0.01, upper=100)
+        vair_g = pymc3.Uniform(name='$Vair_{global}$', lower=0.01, upper=100)
         vair_g_SD  = pymc3.Uniform(name='$\sigma_{Vair}$', lower=1e-6, upper=200)
         vair_g_var = vair_g_SD**2
         vair_g_var.name = '$\sigma_{Vair}^{2}$'
 
-        # INDIVIDUAL-SPECIFIC PARAMETERS
-        CdAm_ind       = numpy.zeros(len(exps), dtype=object)
-        CdAm_ind_shape = numpy.zeros(len(exps), dtype=object)
-        CdAm_ind_rate  = numpy.zeros(len(exps), dtype=object)
+        ## INDIVIDUAL-SPECIFIC PARAMETERS
 
-        bd_ind       = numpy.zeros(len(exps), dtype=object)
-        bd_ind_shape = numpy.zeros(len(exps), dtype=object)
-        bd_ind_rate  = numpy.zeros(len(exps), dtype=object)
-        for e in range(len(exps)):
-            # Drag term
-            CdAm_ind_shape[e] = (CdAm_g ** 2) / CdAm_g_var
-            CdAm_ind_shape[e].name = r'$CdAm\alpha_{exp'+str(e)+'}$'
-            CdAm_ind_rate[e]  = CdAm_g / CdAm_g_var
-            CdAm_ind_rate[e].name = r'$CdAm\beta_{exp'+str(e)+'}$'
+        # Individual Drag
+        CdAm_indv_shape = (CdAm_g ** 2) / CdAm_g_var
+        CdAm_indv_shape.name = r'$CdAm\alpha$'
 
-            CdAm_name = 'CdAm_{exp'+str(e)+'}'
-            CdAm_ind[e] = bounded_gamma(CdAm_name, alpha=CdAm_ind_shape[e],
-                                        beta=CdAm_ind_rate[e])
-            # Body density
-            bd_ind_shape[e] = (bd_g ** 2) / bd_g_var
-            bd_ind_shape[e].name = r'$BodyDensity\alpha_{exp'+str(e)+'}$'
-            bd_ind_rate[e]  = bd_g / bd_g_var
-            bd_ind_rate[e].name = r'$BodyDensity\beta_{exp'+str(e)+'}$'
+        CdAm_indv_rate  = CdAm_g / CdAm_g_var
+        CdAm_indv_rate.name = r'$CdAm\beta$'
 
-            bd_name = 'BodyDensity_{exp'+str(e)+'}'
-            bd_ind[e] = bounded_gamma(bd_name, alpha=bd_ind_shape[e],
-                                      beta=bd_ind_rate[e])
+        CdAm_name = 'CdAm_indv'
+        CdAm_indv = bounded_gamma(CdAm_name, alpha=CdAm_indv_shape,
+                                 beta=CdAm_indv_rate)
+
+        # Individual Body density
+        bd_indv_shape = (bd_g ** 2) / bd_g_var
+        bd_indv_shape.name = r'$BodyDensity\alpha$'
+
+        bd_indv_rate  = bd_g / bd_g_var
+        bd_indv_rate.name = r'$BodyDensity\beta$'
+
+        bd_name = 'BodyDensity_indv'
+        bd_indv = bounded_gamma(bd_name, alpha=bd_indv_shape, beta=bd_indv_rate)
+
 
         # DIVE SPECIFIC PARAMETERS
-        vair_dive       = numpy.zeros(len(dives), dtype=object)
-        vair_dive_shape = numpy.zeros(len(dives), dtype=object)
-        vair_dive_rate  = numpy.zeros(len(dives), dtype=object)
-        for d in dives.index:
-            vair_dive_shape[d] = (vair_g ** 2) / vair_g_var
-            vair_dive_shape[d].name = r'$Vair\alpha_{dive'+str(d)+'}$'
-            vair_dive_rate[d]  = vair_g / vair_g_var
-            vair_dive_rate[d].name = r'$Vair\beta_{dive'+str(d)+'}$'
+        vair_dive_shape = (vair_g ** 2) / vair_g_var
+        vair_dive_shape.name = r'$Vair\alpha$'
 
-            vair_name = 'Vair_dive_{dive'+str(d)+'}'
-            vair_dive[d] = bounded_gamma(vair_name, alpha=vair_dive_shape[d],
-                                        beta=vair_dive_rate[d])
+        vair_dive_rate  = vair_g / vair_g_var
+        vair_dive_rate.name = r'$Vair\beta$'
+
+        vair_name = 'Vair_dive'
+        vair_dive = bounded_gamma(vair_name, alpha=vair_dive_shape,
+                                  beta=vair_dive_rate)
+
+
 
         # Model for hydrodynamic performance
         # Loop across subglides
-        a    = numpy.zeros(len(sgls), dtype=object)
-        a_mu = numpy.zeros(len(sgls), dtype=object)
-        for j in range(len(sgls)):
-            exp_idx  = numpy.argmax(exps['exp_id'] == sgls['exp_id'].iloc[j])
-            dive_idx = numpy.argmax(dives['dive_id'] == sgls['dive_id'].iloc[j])
 
-            # Calculate term 1
-            term1[j] = drag_with_speed(CdAm_ind[exp_idx],
-                                       sgls['mean_swdensity'].iloc[j],
-                                       sgls['mean_speed'].iloc[j])
-            term1[j].name = 'term1_{sgl'+str(j)+'}'
+        # Calculate term 1
+        term1 = drag_with_speed(CdAm_indv,
+                                sgls['mean_swdensity'].values,
+                                sgls['mean_speed'].values)
+        #term1.name = 'term1'
 
-            # Calculate term 2
-            term2[j] = non_gas_body_density(bd_ind[exp_idx],
-                                            sgls['mean_depth'].iloc[j],
-                                            sgls['mean_swdensity'].iloc[j],
-                                            sgls['mean_sin_pitch'].iloc[j],
-                                            compr, atm_pa, g)
-            term2[j].name = 'term2_{sgl'+str(j)+'}'
+        # Calculate term 2
+        term2 = non_gas_body_density(bd_indv,
+                                     sgls['mean_depth'].values,
+                                     sgls['mean_swdensity'].values,
+                                     sgls['mean_sin_pitch'].values,
+                                     compr,
+                                     atm_pa,
+                                     g)
+        #term2.name = 'term2'
 
-            # Calculate term 3
-            term3[j] = gas_per_unit_mass(vair_dive[dive_idx],
-                                         sgls['mean_depth'].iloc[j],
-                                         sgls['mean_swdensity'].iloc[j],
-                                         sgls['mean_sin_pitch'].iloc[j],
-                                         p_air, g)
+        # Calculate term 3
+        term3 = gas_per_unit_mass(vair_dive,
+                                  sgls['mean_depth'].values,
+                                  sgls['mean_swdensity'].values,
+                                  sgls['mean_sin_pitch'].values,
+                                  p_air, g)
+        #term3.name = 'term3'
 
-            term3[j].name = 'term3_{sgl'+str(j)+'}'
+        # Modelled acceleration
+        a_mu = term1 + term2 + term3
+        a_mu.name = '$a\mu$'
 
-            # Modelled acceleration
-            a_mu[j] = term1[j] + term2[j] + term3[j]
-            a_mu[j].name = '$a_\mu_{sgl'+str(j)+'}$'
+        # Fitting modelled acceleration `sgls['a_mu']` to observed
+        # acceleration data `sgls['mean_a']` assumes observed values follow
+        # a normal distribution with the measured precision
+        # 'tau'=1/variance (i.e. 1/(SE+001)**2)
 
-            # Fitting modelled acceleration `sgls['a_mu']` to observed
-            # acceleration data `sgls['mean_a']` assumes observed values follow
-            # a normal distribution with the measured precision
-            # 'tau'=1/variance (i.e. 1/(SE+001)**2)
+        # TODO perhaps perform a polyfit, for better residuals/tau
+        a_tau = 1/((sgls['SE_speed_vs_time'].values+0.001)**2)
+        a_tau = theanotype(a_tau)
 
-            # TODO perhaps perform a polyfit, for better residuals/tau
-            a_tau = 1/((sgls['SE_speed_vs_time'].iloc[j]+0.001)**2)
+        a_name = '$a$'
+        a = pymc3.Normal(a_name, a_mu, a_tau, testval=1)
 
-            a_name = '$a_{sgl'+str(j)+'}$'
-            a[j] = pymc3.Normal(a_name, a_mu[j], a_tau, testval=1)
+
 
         # Define which vars are to be sampled from
-        tracevars = [compr, CdAm_g, bd_g, vair_g]
-
-        add_vars  = [CdAm_ind, bd_ind, vair_dive, a]
+        tracevars = [compr, CdAm_g, bd_g, vair_g, a,
+                    CdAm_indv, bd_indv, vair_dive]
 
         extra_global = [CdAm_g_var, CdAm_g_SD,
                         bd_g_var, bd_g_SD,
                         vair_g_var, vair_g_SD]
 
-        extra_ind  = [CdAm_ind_shape, CdAm_ind_rate,
-                      bd_ind_shape, bd_ind_rate]
+        extra_indv  = [CdAm_indv_shape, CdAm_indv_rate,
+                      bd_indv_shape, bd_indv_rate]
 
         extra_dive = [vair_dive_shape, vair_dive_rate]
 
         extra_sgl  = [a_mu,]
 
-        # Append `add_vars` list of var arrays to `tracevars`, collect names
-        [[tracevars.append(v) for v in a] for a in add_vars]
+        tracevars = tracevars + extra_global + extra_indv + extra_dive + extra_sgl
+        # Collect var names
+        #TODO remove [[tracevars.append(v) for v in a] for a in add_vars]
         varnames = [v.name for v in tracevars]
 
         # Get counts and print
         n_traced = len(tracevars)
-        n_global = len(extra_global)
-        n_ind    = numpy.sum([len(a) for a in extra_ind])
-        n_dive   = numpy.sum([len(a) for a in extra_dive])
-        n_sgl   = numpy.sum([len(a) for a in extra_sgl])
-
         print('traced:         {}'.format(n_traced))
-        print('extra globals:  {}'.format(n_global))
-        print('extra ind:      {}'.format(n_ind))
-        print('extra dive:     {}'.format(n_dive))
-        print('extra sgl:      {}'.format(n_sgl))
-        print('total extra:    {}'.format(sum([n_global, n_ind, n_dive, n_sgl])))
+
+        #n_global = len(extra_global)
+        #n_indv    = numpy.sum([len(a) for a in extra_indv])
+        #n_dive   = numpy.sum([len(a) for a in extra_dive])
+        #n_sgl   = numpy.sum([len(a) for a in extra_sgl])
+        #print('extra globals:  {}'.format(n_global))
+        #print('extra ind:      {}'.format(n_indv))
+        #print('extra dive:     {}'.format(n_dive))
+        #print('extra sgl:      {}'.format(n_sgl))
+        #print('total extra:    {}'.format(sum([n_global, n_indv, n_dive, n_sgl])))
 
         # Create backend for storing trace output
         backend = pymc3.backends.text.Text(trace_name, vars=tracevars)
 
-        # 24k iterations
-        # 3 parallel jobs, similar to multiple chains
-        # remaining posterier samples downsampled by factor of 36
-        trace = pymc3.sample(draws=n_iter, init=init, n_init=n_init, njobs=njobs,
-                             trace=backend)
+        # ADVI
+        #v_params = pymc3.variational.advi(n=n_init)
+        #trace = pymc3.variational.sample_vp(v_params, draws=n_iter)
+
+        # Metropolis
+        start = pymc3.find_MAP()
+        step = pymc3.Metropolis()
+        trace = pymc3.sample(draws=n_iter, step=step, start=start, init=init,
+        n_init=n_init, trace=backend)
+
+        # NUTS
+        #start = pymc3.find_MAP()
+        #step = pymc3.NUTS()
+        #trace = pymc3.sample(draws=n_iter, step=step, start=start, init=init,
+        #                     n_init=n_init, trace=backend)
 
         pymc3.summary(trace, varnames=varnames[:5])
 
@@ -335,4 +371,4 @@ if __name__ == '__main__':
     glide_path = paths['glide']
     mcmc_path  = paths['mcmc']
 
-    run_mcmc_all(root_path, glide_path, mcmc_path, debug=True)
+    run_mcmc_all(root_path, glide_path, mcmc_path, debug=False)
