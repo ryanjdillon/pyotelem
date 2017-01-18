@@ -231,11 +231,10 @@ def create_ann_inputs(root_path, acc_path, glide_path, ann_path, bc_path, bc_fil
         # Create empty column for body condition target values
         sgls = add_col(sgls, col_name, numpy.full(len(sgls), numpy.nan))
 
-        # Loop through rows in `sgls`
-        for i in tqdm.tqdm(sgls.index):
+        exp_ids = numpy.unique(sgls['exp_id'].values)
 
-            # Get experimental treatment for adding density of blocks
-            exp_id = sgls['exp_id'][i]
+        for i in tqdm.tqdm(range(len(exp_ids))):
+            exp_id = exp_ids[i]
             meta_path = os.path.join(root_path, acc_path, exp_id, 'meta.yaml')
             meta = yaml_tools.read_yaml(meta_path)
             mod   = meta['mod']   # type of block
@@ -260,10 +259,12 @@ def create_ann_inputs(root_path, acc_path, glide_path, ann_path, bc_path, bc_fil
             # Get `bc` index position of nearest datetime
             bc_idx = numpy.argmax(bc['date'] == bc_dt)
 
+            exp_mask = sgls['exp_id'] == exp_id
+            sgls[exp_mask] = bc[col_name].iloc[bc_idx] + density_mod(mod, mod_n)
+
             # Write body condition value to `sgl` subglide row
             # add density modification from attached blocks
             # TODO review
-            sgls[col_name].loc[i] = bc[col_name].iloc[bc_idx] + density_mod(mod, mod_n)
 
         return sgls
 
