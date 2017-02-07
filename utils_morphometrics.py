@@ -154,9 +154,7 @@ def diff_speed(sw_dens=1.028, seal_dens=1.053, seal_length=300, seal_girth=200,
 def lip2en(BM, perc_lipid):
     '''lipids to percent total body weight'''
     PTBW = 71.4966 - (0.6802721*perc_lipid)
-    (40.8*BM) - (48.5*(0.01*PTBW*BM)) - 0.4
-
-    return PTBW
+    return (40.8*BM) - (48.5*(0.01*PTBW*BM)) - 0.4
 
 
 def surf_vol(length, girth):
