@@ -13,7 +13,7 @@ acc_cal:
 bodycondition: data_body-condition/
 
 # Path containing all text respirometry data
-respirometry: respirometry/2016/Skinny/textfiles/Freq0.01/
+respirometry: data_respirometry/textfiles/Freq0.01/
 
 # Contains subglide data directories for each processed experiement
 glide: data_glide/
