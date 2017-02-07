@@ -141,9 +141,10 @@ def read_respirometry(file_path):
 if __name__ == '__main__':
     import os
 
-    resp_path = ('/home/ryan/Desktop/edu/01_PhD/projects/smartmove/data/'
-                 'lleo_coexist/respirometry/2016/Skinny/textfiles'
-                 '/Freq0.01')
+    from rjdtools import yaml_tools
+
+    paths = yaml_tools.read_yaml('./iopaths.yaml')
+    resp_path = os.path.join(paths['root'], paths['respirometry'])
 
     for d in os.listdir(resp_path):
         if d.endswith('.txt'):
