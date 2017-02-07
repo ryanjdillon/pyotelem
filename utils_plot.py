@@ -504,12 +504,14 @@ def plot_prh_filtered(p, r, h, p_lf, r_lf, h_lf):
 
 
 def plot_swim_speed(exp_ind, swim_speed):
+    import numpy
 
     fig, ax = plt.subplots()
 
     ax.title.set_text('Swim speed from depth change and pitch angle (m/s^2')
     ax.plot(exp_ind, swim_speed, linewidth=linewidth, label='speed')
-    ax.set_ylim(0, max(swim_speed))
+    ymax = numpy.ceil(swim_speed[~numpy.isnan(swim_speed)].max())
+    ax.set_ylim(0, ymax)
     ax.legend(loc='upper right')
 
     plt.show()
