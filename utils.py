@@ -125,6 +125,43 @@ def recursive_input(input_label, type_class):
         return sys.exit()
 
 
+def get_dir_indices(msg, dirs):
+    '''Return path(s) indices of directory list from user input
+
+    msg: str
+        String with message to display before pass selection input
+    dir_list: array-like
+        list of paths to be displayed and selected from
+
+    Return
+    ------
+    input_dir_indices: array-like
+        list of index positions of user selected path from input
+    '''
+    import os
+
+    # Get user input for paths to process
+    usage = ('\nEnter numbers preceeding paths seperated by commas (e.g. '
+             '`0,2,3`).\nTo select all paths type `all`.\nSingle directories '
+             'can also be entered (e.g.  `0`)\n\n')
+
+    # Generate paths text to display
+    dirs_str = ['{} {}\n'.format(i, p) for i, p in enumerate(dirs)]
+    dirs_str = ''.join(dirs_str)
+
+    # Concatenate `msg`, usage txt, and paths list for display before input
+    input_dirs   = recursive_input(''.join([msg, usage, dirs_str, '\n']), str)
+
+    # Determine type of input
+    if ',' in input_dirs:
+        input_dir_indices = [int(x.strip()) for x in input_dirs.split(',')]
+    elif input_dirs is 'all':
+        input_dir_indices = range(len(dirs))
+    else:
+        input_dir_indices = [int(input_dirs.strip()),]
+
+    return input_dir_indices
+
 def normalized(a, axis=-1, order=2):
     '''Return normalized vector for arbitrary axis
 
