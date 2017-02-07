@@ -125,13 +125,14 @@ def speed_from_acc_and_ref(x, fs_a, rel_speed, zero_level, theoretic_max=None,
     import numpy
     import scipy.integrate
 
-    import utils
+    from bodycondition import utils
 
     x_speed = numpy.zeros(len(rel_speed), dtype=float)
 
     # Get indices of data sections split by known zero velocities
-    zero_mask = rel_speed > zero_level
-    start_ind, stop_ind = utils.contiguous_regions(zero_mask)
+    nonzero_mask = (rel_speed > zero_level) & (~numpy.isnan(rel_speed)) & \
+                   (~numpy.isnan(x))
+    start_ind, stop_ind = utils.contiguous_regions(nonzero_mask)
 
     # Estimate speed in regions between known points of zero velocity
     for start_idx, stop_idx in zip(start_ind, stop_ind):
