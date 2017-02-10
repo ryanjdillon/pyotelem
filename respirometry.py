@@ -143,7 +143,7 @@ if __name__ == '__main__':
 
     from rjdtools import yaml_tools
 
-    paths = yaml_tools.read_yaml('./iopaths.yaml')
+    paths = yaml_tools.read_yaml('./cfg_paths.yaml')
     resp_path = os.path.join(paths['root'], paths['respirometry'])
 
     for d in os.listdir(resp_path):

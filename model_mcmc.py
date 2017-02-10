@@ -83,7 +83,7 @@ def run_mcmc_all(root_path, glide_path, mcmc_path, manual_selection=True,
     now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     n_init = 10000
     init   = 'advi_map'
-    n_iter = 24000
+    n_iter = 50000
     njobs  = None
     trace_name = '{}_mcmc_iter{}_njobs{}'.format(now, n_iter, njobs)
 
@@ -107,7 +107,7 @@ def run_mcmc_all(root_path, glide_path, mcmc_path, manual_selection=True,
     results = run_mcmc(exps, sgls, dives, trace_name, n_iter=n_iter, init=init,
                        n_init=n_init, njobs=njobs)
 
-    return None
+    return results
 
 
 def theanotype(a):
@@ -213,7 +213,7 @@ def run_mcmc(exps, sgls, dives, trace_name, n_iter, init=None, n_init=None,
 
         # Mass-specific volume of air (average across dives) (ml kg-1)
         vair_g = pymc3.Uniform(name='$Vair_{global}$', lower=0.01, upper=100)
-        vair_g_SD  = pymc3.Uniform(name='$\sigma_{Vair}$', lower=1e-6, upper=200)
+        vair_g_SD  = pymc3.Uniform(name='$\sigma_{Vair}$', lower=1e-6, upper=100)
         vair_g_var = vair_g_SD**2
         vair_g_var.name = '$\sigma_{Vair}^{2}$'
 
@@ -365,7 +365,7 @@ if __name__ == '__main__':
 
     from rjdtools import yaml_tools
 
-    paths = yaml_tools.read_yaml('iopaths.yaml')
+    paths = yaml_tools.read_yaml('./cfg_paths.yaml')
 
     root_path  = paths['root']
     glide_path = paths['glide']

@@ -1,3 +1,139 @@
+import click
+
+import os
+import click
+
+@click.command(help='Run ANN with parameters defined in cfg_ann.yaml')
+
+@click.option('--cfg-paths-path', prompt=True, default='./cfg_paths.yaml',
+              help='Path to cfg_paths.yaml')
+
+@click.option('--cfg-ann-path', prompt=True, default='./cfg_ann.yaml',
+              help='Path to cfg_ann.yaml')
+
+@click.option('--debug', prompt=True, default=False, type=bool,
+              help='Use single permutation of tuning parameters')
+
+def run(cfg_paths_path, cfg_ann_path, debug=False):
+    # NOTE: the validation set is split into "validation" and "test" sets, the
+    # first used for initial comparisons of various net configuration
+    # accuracies and the second for a clean test set to get an true accuracy,
+    # as reusing the "validation" set can cause the routine to overfit to the
+    # validation set.
+
+    # TODO check if results are still loadable as pandas instead of pkl
+    #pickle.dump(results, open('results_data.pkl', 'wb'))
+
+    # TODO make following script a routine, debug as option
+    # convert npy arrays to pandas with column labels
+
+    # TODO plots?
+
+    # TODO add starttime, finishtime, git/versions
+    from collections import OrderedDict
+    import datetime
+    import climate
+    import numpy
+    import os
+
+    import utils_data
+    from rjdtools import yaml_tools
+
+    climate.enable_default_logging()
+
+    import theano
+    theano.config.compute_test_value = 'ignore'
+
+    # Configuration settings
+    cfg = yaml_tools.read_yaml(cfg_ann_path)
+
+    # Define output directory and create if does not exist
+    now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    cfg['output']['results_path'] = 'theanets_{}'.format(now)
+
+    # Define paths
+    paths       = yaml_tools.read_yaml(cfg_paths_path)
+    root_path   = paths['root']
+    acc_path    = paths['acc']
+    glide_path  = paths['glide']
+    ann_path    = paths['ann']
+    bc_path     = paths['bodycondition']
+    bc_filename = 'bc_no-tag_skinny_yellow.p'
+
+    print('Compile output from glides into ANN input')
+
+    # Compile output from glides into single input dataframe
+    sgls = utils_data.create_ann_inputs(root_path,
+                                        acc_path,
+                                        glide_path,
+                                        ann_path,
+                                        bc_path,
+                                        bc_filename,
+                                        cfg['data']['sgl_cols'],
+                                        manual_selection=True)
+    # TODO review outcome of this
+    sgls = sgls.dropna()
+
+    print('Split and normalize input/output data')
+
+    # Split data with random selection for validation
+    train, valid, test, bins = split_data(sgls,
+                                          cfg['net_all']['feature_cols'],
+                                          cfg['net_all']['target_col'],
+                                          cfg['net_all']['valid_frac'],
+                                          cfg['net_all']['n_classes'])
+
+    # Define parameter set to tune neural net with
+    if debug is True:
+        for key in cfg['net_tuning'].keys():
+            cfg['net_tuning'][key] = [cfg['net_tuning'][key][0],]
+
+    print('Tune netork configuration')
+
+    # Get all dict of all configuration permutations of params in `tune_params`
+    configs = get_configs(cfg['net_tuning'])
+
+    # Cycle through configurations storing configuration, net in `tune_results`
+    n_features = len(feature_cols)
+    n_targets = n_classes
+
+    print('features: {}'.format(n_features))
+    print('targets: {}'.format(n_targets))
+    #n_targets = 1
+    tune_results, tune_accuracy, tune_matrix = tune_net(train,
+                                                        valid,
+                                                        test,
+                                                        configs,
+                                                        n_features,
+                                                        n_targets)
+
+    # Get neural net configuration with best accuracy
+    best_config = get_best(tune_results, 'config')
+
+    print('Run percentage of datasize tests')
+
+    # Get new randomly sorted and subsetted datasets to test effect of dataset_size
+    # i.e. - a dataset with the first `subset_fraction` of samples.
+    subset_fractions = cfg['net_dataset_size']['subset_franctions']
+    dataset_results, data_accuracy, data_matrix = test_dataset_size(best_config,
+                                                                    train,
+                                                                    valid,
+                                                                    test,
+                                                                    subset_fractions)
+
+    print('Test data accuracy (Configuration tuning): {}'.format(tune_accuracy))
+    print('Test data accuracy (Datasize test):        {}'.format(data_accuracy))
+
+    # Save results and configuration to output directory
+    out_path = os.path.join(root_path, ann_path, cfg['output']['results_path'])
+    os.makedirs(out_path, exist_ok=True)
+
+    yaml_tools.write_yaml(cfg, os.path.join(out_path, cfg_fname))
+    tune_results.to_pickle(os.path.join(out_path, cfg['output']['tune_fname']))
+    dataset_results.to_pickle(os.path.join(out_path, cfg['output']['dataset_size_fname']))
+
+    return cfg, tune_results, dataset_results
+
 
 def n_hidden(n_input, n_output, n_train_samples, alpha):
     # http://stats.stackexchange.com/a/136542/16938
@@ -11,9 +147,9 @@ def split_data(df, feature_cols, target_col, valid_frac, n_classes):
     import pandas
     from sklearn.preprocessing import normalize
 
+    # TODO add bin sizes to cfg
+
     # Bin outputs
-    mod = 5
-    n_classes = 5
     ymin =  df[target_col].min()
     ymax =  df[target_col].max()
     mod = (ymax - ymin)/n_classes/4
@@ -92,24 +228,78 @@ def get_configs(tune_params):
     return configs
 
 
-def create_algorithm(train, valid, config, n_features, n_targets):
+def create_algorithm(cfg, train, valid, config, n_features, n_targets):
     '''Configure and train a theanets neural network'''
     import theanets
 
     # Build neural net with defined configuration
-    net = theanets.Classifier([n_features, config['hidden_nodes'],
-                               n_targets])
+    net = theanets.Classifier([n_features, config['hidden_nodes'], n_targets])
+
     # User 'mse' as loss function
     #net = theanets.Regressor(layers=[n_features, config['hidden_nodes'], n_targets])
 
+    # mini-batchs
+    # http://sebastianruder.com/optimizing-gradient-descent/index.html#minibatchgradientdescent
+    # https://github.com/lmjohns3/theanets/blob/master/scripts/theanets-char-rnn
+
+    # TODO use other trainers (optimizers)
+    # https://theanets.readthedocs.io/en/stable/api/trainers.html
+    # http://sebastianruder.com/optimizing-gradient-descent/
+    # NAG, ADADELTA, RMSProp
+
+    # Input/hidden dropout
+    # Input/hidden noise
+
+    # Learning rate
+
+    # Shuffling, Curriculum learning
+    # http://sebastianruder.com/optimizing-gradient-descent/index.html#shufflingandcurriculumlearning
+
+    # Batch normalization?
+    # http://sebastianruder.com/optimizing-gradient-descent/index.html#batchnormalization
+
+    # Early stopping https://github.com/lmjohns3/theanets/issues/17
+
+    # TODO figure out mini-batches, data callable
+    # https://groups.google.com/forum/#!topic/theanets/LctHBDAKdH8
+    #batch_size = 64
+
+    #if not train_batches:
+    #    train_batchs = batch_size
+    #if not valid_batches:
+    #    valid_batches = batch_size
+
+    # SGD converges to minima/maxima faster with momentum
+    # NAG, ADADELTA, RMSProp have equivalents of parameter specific momentum
+    if config['algorithm'] is 'sgd':
+        config['momentum'] = 0.9
+
+    #train_loss = list()
+    #valid_loss = list()
+    #for train_monitor, valid_monitor in exp.itertrain(...):
+    #    train_loss.append(train_monitor['loss'])
+    #    valid_loss.append(valid_monitor['loss'])
+
+    ## Plot loss during training
+    #plt.plot(loss)
+    #plt.show()
+
     # Train the model using SGD with momentum.
     # user net.itertrain() for return monitors to plot
-    net.train(train, valid, algo=config['algorithm'],
-                            hidden_l1=config['l1'],
-                            weight_l2=config['l2'],
-                            learning_rate=1e-4,
-                            momentum=0.9
-                            )
+    net.train(train,
+              valid,
+              algo=config['algorithm'],
+              patience=config['patience'],
+              min_improvement=config['min_improvement'],
+              validate_every =config['validate_every'],
+              #batch_size=batch_size,
+              #train_batches=train_batches,
+              #valid_batches=valid_batches,
+              learning_rate=config['learning_rate'],
+              momentum=config['momentum'],
+              hidden_l1=config['hidden_l1'],
+              weight_l2=config['weight_l2'],
+              )
 
     # Classify features against label/target value to get accuracy
     # where `valid` is a tuple with validation (features, label)
@@ -132,20 +322,26 @@ def tune_net(train, valid, test, configs, n_features, n_targets):
     '''
     import numpy
     import pandas
+    import time
 
-    tune_cols = ['config', 'net', 'accuracy']
+    tune_cols = ['config', 'net', 'accuracy', 'train_time']
     tune_results = pandas.DataFrame(index=range(len(configs)),
                                     columns=tune_cols, dtype=object)
     #tune_results = numpy.zeros((len(configs),3), dtype=object)
 
     for i in range(len(configs)):
 
+        t0 = time.time()
+
         net, accuracy = create_algorithm(train, valid, configs[i], n_features,
                                          n_targets)
 
-        tune_results['config'][i]   = configs[i]
-        tune_results['net'][i]      = net
-        tune_results['accuracy'][i] = accuracy
+        t1 = time.time()
+
+        tune_results['config'][i]     = configs[i]
+        tune_results['net'][i]        = net
+        tune_results['accuracy'][i]   = accuracy
+        tune_results['train_time'][i] = t1 - t0
 
     # Get neural net with best accuracy
     best_net = get_best(tune_results, 'net')
@@ -156,9 +352,9 @@ def tune_net(train, valid, test, configs, n_features, n_targets):
     print('tune test accuracy: {}'.format(test_accuracy))
 
     # Print confusion matrices for train and test
-    #valid_matrix = get_confusion_matrices(best_net, train, test)
+    valid_matrix = get_confusion_matrices(best_net, train, test)
 
-    return tune_results, test_accuracy#, valid_matrix
+    return tune_results, test_accuracy, valid_matrix
 
 
 def truncate_data(data, frac):
@@ -180,9 +376,10 @@ def test_dataset_size(best_config, train, valid, test, subset_fractions):
     '''Train nets with best configuration and varying dataset sizes'''
     import numpy
     import pandas
+    import time
 
     # Make array for storing results
-    data_cols = ['config', 'net', 'accuracy', 'subset_frac']
+    data_cols = ['config', 'net', 'accuracy', 'subset_frac', 'train_time']
     dataset_results = pandas.DataFrame(index=range(len(subset_fractions)),
                                     columns=data_cols, dtype=object)
 
@@ -194,13 +391,17 @@ def test_dataset_size(best_config, train, valid, test, subset_fractions):
         valid_frac = truncate_data(valid, subset_fractions[i])
         test_frac  = truncate_data(test, subset_fractions[i])
 
+        t0 = time.time()
+
         net, accuracy = create_algorithm(train, valid, best_config, n_features,
                                          n_targets)
+        t1 = time.time()
 
         dataset_results['config'][i]      = best_config
         dataset_results['net'][i]         = net
         dataset_results['accuracy'][i]    = accuracy
         dataset_results['subset_frac'][i] = subset_fractions[i]
+        dataset_results['train_time'][i]  = t1 - t0
 
     # Get neural net with best accuracy
     best_net = get_best(dataset_results, 'net')
@@ -211,127 +412,10 @@ def test_dataset_size(best_config, train, valid, test, subset_fractions):
     print('dataset size test accuracy: {}'.format(test_accuracy))
 
     # Print confusion matrices for train and test
-    #valid_matrix = get_confusion_matrices(best_net, train, test)
+    valid_matrix = get_confusion_matrices(best_net, train, test)
 
-    return dataset_results, test_accuracy#, valid_matrix
+    return dataset_results, test_accuracy, valid_matrix
 
 
 if __name__ == '__main__':
-    # The following loads the handwriting dataset, tunes different nets with
-    # varying configuration, and then tests the effect of dataset size.
-
-    # NOTE: the validation set is split into "validation" and "test" sets, the
-    # first used for initial comparisons of various net configuration
-    # accuracies and the second for a clean test set to get an true accuracy,
-    # as reusing the "validation" set can cause the routine to overfit to the
-    # validation set.
-
-    # TODO check if results are still loadable as pandas instead of pkl
-    #pickle.dump(results, open('results_data.pkl', 'wb'))
-
-    # TODO make following script a routine, debug as option
-    # convert npy arrays to pandas with column labels
-
-    # TODO plots?
-
-    # TODO add starttime, finishtime, git/versions
-    from collections import OrderedDict
-    import datetime
-    import climate
-    import numpy
-    import os
-    import theano
-
-    import utils_data
-    from rjdtools import yaml_tools
-
-    climate.enable_default_logging()
-    theano.config.compute_test_value = 'off'
-
-    # Input
-    debug = False # TODO remove
-    ann_cfg_fname = 'cfg_ann.yaml'
-    ann_cfg = yaml_tools.read_yaml(ann_cfg_fname)
-
-    # Output filenames
-    tune_fname = 'results_tuning.p'
-    dataset_size_fname = 'results_dataset_size.p'
-
-    # Define paths
-    paths = yaml_tools.read_yaml('./iopaths.yaml')
-    root_path  = paths['root']
-    acc_path   = paths['acc']
-    glide_path = paths['glide']
-    ann_path   = paths['ann']
-    bc_path    = paths['bodycondition']
-    bc_filename = 'bc_no-tag_skinny_yellow.p'
-
-    # Define output directory and creat if does not exist
-    now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    results_path = 'theanets_{}'.format(now)
-    out_path = os.path.join(root_path, ann_path, results_path)
-    os.makedirs(out_path, exist_ok=True)
-
-    print('Compile output from glides into ANN input')
-
-    # Compile output from glides into single input dataframe
-    sgl_cols = ['exp_id', 'mean_speed', 'total_depth_change',
-                'mean_sin_pitch', 'mean_swdensity', 'SE_speed_vs_time']
-    sgls = utils_data.create_ann_inputs(root_path, acc_path, glide_path,
-                                        ann_path, bc_path, bc_filename,
-                                        sgl_cols, manual_selection=True)
-
-    # TODO review outcome of this
-    sgls = sgls.dropna()
-
-    # Dimensions of Input and output layers
-    feature_cols = ['mean_speed', 'total_depth_change', 'mean_sin_pitch',
-                    'mean_swdensity', 'SE_speed_vs_time']
-    target_col = 'density'
-    valid_frac = 0.8
-    n_classes = 5
-
-    print('Split and normalize input/output data')
-
-    # Split data with random selection for validation
-    train, valid, test, bins = split_data(sgls, feature_cols, target_col, valid_frac,
-                                          n_classes=n_classes)
-
-    # Define parameter set to tune neural net with
-    if debug is True:
-        tune_params = ann_cfg['debug']
-    else:
-        tune_params = ann_cfg['full']
-
-    print('Tune netork configuration')
-
-    # Get all dict of all configuration permutations of params in `tune_params`
-    configs = get_configs(tune_params)
-
-    # Cycle through configurations storing configuration, net in `tune_results`
-    n_features = len(feature_cols)
-    n_targets = n_classes
-    print('features: {}'.format(n_features))
-    print('targets: {}'.format(n_targets))
-    #n_targets = 1
-    tune_results, tune_accuracy = tune_net(train, valid, test, configs,
-                                           n_features, n_targets)
-
-    # Get neural net configuration with best accuracy
-    best_config = get_best(tune_results, 'config')
-
-    print('Run percentage of datasize tests')
-
-    # Get new randomly sorted and subsetted datasets to test effect of dataset_size
-    # i.e. - a dataset with the first `subset_fraction` of samples.
-    subset_fractions = [0.4, 0.7, 1.0]
-    dataset_results, data_accuracy = test_dataset_size(best_config, train,
-                                                       valid, test, subset_fractions)
-
-    print('Test data accuracy (Configuration tuning): {}'.format(tune_accuracy))
-    print('Test data accuracy (Datasize test):        {}'.format(data_accuracy))
-
-    # Save results and configuration to output directory
-    yaml_tools.write_yaml(ann_cfg, os.path.join(out_path, ann_cfg_fname))
-    tune_results.to_pickle(os.path.join(out_path, tune_fname))
-    dataset_results.to_pickle(os.path.join(out_path, dataset_size_fname))
+    run()

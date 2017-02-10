@@ -288,7 +288,7 @@ def create_ann_inputs(root_path, acc_path, glide_path, ann_path, bc_path, bc_fil
     #exps_all.to_pickle(os.path.join(root_path, mcmc_path, 'exps_all.p'))
     #dives_all.to_pickle(os.path.join(root_path, mcmc_path, 'dives_all.p'))
 
-    return sgls
+    return exps_all, sgls, dives_all
 
 def create_mcmc_inputs(root_path, glide_path, mcmc_path, sgl_cols,
         manual_selection=True):
@@ -334,7 +334,7 @@ def __add_fields(df, key_list, fill_value):
 if __name__ == '__main__':
     from rjdtools import yaml_tools
 
-    paths      = yaml_tools.read_yaml('./iopaths.yaml')
+    paths      = yaml_tools.read_yaml('./cfg_paths.yaml')
     root_path  = paths['root']
     acc_path   = paths['acc']
     glide_path = paths['glide']

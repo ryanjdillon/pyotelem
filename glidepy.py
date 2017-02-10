@@ -50,22 +50,23 @@ import click
 
 @click.command(help='Calculate dive statistics for body condition predictions')
 
-@click.option('--iopaths-filename', prompt=True, default='./iopaths.yaml',
-              help='Path to iopaths.yaml')
+@click.option('--cfg-paths-path', prompt=True, default='./cfg_paths.yaml',
+              help='Path to cfg_paths.yaml')
 
-@click.option('--debug', prompt=True, default=True, type=bool,
+@click.option('--debug', prompt=True, default=False, type=bool,
               help='Return on debug output')
 
-def run_all(iopaths_filename, debug=False):
+def run_all(cfg_paths_path, debug=False):
     from rjdtools import yaml_tools
+    import utils
 
-    paths = yaml_tools.read_yaml(iopaths_filename)
+    paths = yaml_tools.read_yaml(cfg_paths_path)
 
     root_path  = paths['root']
     acc_path   = paths['acc']
     glide_path = paths['glide']
 
-    # Use debug defaults from iopaths if debug arg `True`
+    # Use debug defaults from `cfg_paths.yaml` if debug arg `True`
     if debug is True:
         exp_path       = paths['debug']['exp_path']
         acc_cal_path   = paths['debug']['acc_cal_path']
@@ -86,27 +87,36 @@ def run_all(iopaths_filename, debug=False):
     # Process all experiments in accelerometer data path
     elif debug is False:
 
+        exp_paths = list()
         # Process all experiments in `acc_path`
         for exp_path in os.listdir(os.path.join(root_path, acc_path)):
 
             # Only process directories
             if os.path.isdir(os.path.join(root_path, acc_path, exp_path)):
 
-                print(exp_path)
+                exp_paths.append(exp_path)
 
-                # Get correct calibration path given tag ID number
-                acc_cal_path = paths['acc_cal'][int(exp_path.split('_')[2])]
-                print('Tag calibration file path: {}'.format(acc_cal_path))
+        msg = 'Enter paths numbers to process:\n'
+        process_ind = utils.get_dir_indices(msg, exp_paths)
 
-                # Currently creating a new configuration for each exp
-                glide_cfg_path = exp_path
+        for i in process_ind:
+            exp_path = exp_paths[i]
+            print(exp_path)
 
-                print('Processing: {}'.format(exp_path))
+            # Get correct calibration path given tag ID number
+            acc_cal_path = paths['acc_cal'][int(exp_path.split('_')[2])]
+            print('Tag calibration file path: {}'.format(acc_cal_path))
 
-                # Run glide analysis
-                lleo_glide_analysis(root_path, acc_path, glide_path, exp_path,
-                                    acc_cal_path, glide_cfg_path)
+            # Currently creating a new configuration for each exp
+            glide_cfg_path = exp_path
+
+            print('Processing: {}'.format(exp_path))
+
+            # Run glide analysis
+            lleo_glide_analysis(root_path, acc_path, glide_path, exp_path,
+                                acc_cal_path, glide_cfg_path)
         return None
+
 
 
 def lleo_glide_analysis(root_path, acc_path, glide_path, exp_path,
@@ -227,6 +237,7 @@ def process_sensor_data(log, cfg, data, fs_a, Mw=None, plots=True, debug=False):
         # Get indices user input - mask
         cfg['start_idx'] = utils.recursive_input('Analysis start index', int)
         cfg['stop_idx']  = utils.recursive_input('Analysis stop index', int)
+    # TODO cleanup, add sample data and put this in debug section of cfg yaml?
     else:
         cfg['start_idx'] = 185231
         cfg['stop_idx'] = 446001
