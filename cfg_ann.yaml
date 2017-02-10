@@ -1,18 +1,27 @@
-# ANN configuration settings
+# Parameters for compiling data
+data:
+    sgl_cols: 
+        - 'exp_id'
+        - 'mean_speed'
+        - 'total_depth_change'
+        - 'mean_sin_pitch'
+        - 'mean_swdensity'
+        - 'SE_speed_vs_time'
 
-# Single set of tuning parameters for fast runtime
-debug:
-    hidden_nodes:
-        - 10
-    algorithm:
-        - sgd
-    l1:
-        - 0.1
-    l2:
-        - 0.1
+# Data and network config common to all structures
+net_all:
+    feature_cols:
+        - 'mean_speed'
+        - 'total_depth_change'
+        - 'mean_sin_pitch'
+        - 'mean_swdensity'
+        - 'SE_speed_vs_time'
+    target_col: 'density'
+    valid_frac: 0.8
+    n_classes:  5
 
-# Full set of tunings parameter to run and compare
-full:
+# Network tuning parameters, all permutations of these will be trained/validated
+net_tuning:
     hidden_nodes:
         - 10
         - 20
@@ -22,11 +31,36 @@ full:
         - 500
     algorithm:
         - sgd
-    l1:
+        - nag
+        - rmsprop
+        - adadelta
+    hidden_l1:
         - 0.1
         - 0.001
         - 0.0001
-    l2:
+    weight_l2:
         - 0.1
         - 0.001
         - 0.0001
+    momentum:
+        - 0.9
+    patience:
+        - 0
+    min_improvement:
+        - 0.999
+    validate_every:
+        - 10
+    learning_rate:
+        - 0.0001
+
+# Parameters for testing dataset size
+net_dataset_size:
+    subset_fractions:
+        - 0.4
+        - 0.7
+        - 1.0
+
+# Output paths and filenames
+output:
+    tune_fname: 'results_tuning.p'
+    dataset_size_fname: 'results_dataset_size.p'
