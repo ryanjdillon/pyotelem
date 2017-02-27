@@ -1,3 +1,16 @@
+
+def get_n_lines(file_path):
+    '''Get number of lines by calling bash command wc'''
+    import os
+    import subprocess
+
+    cmd = 'wc -l {0}'.format(file_path)
+    output = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE).stdout
+    n_lines = int((output).readlines()[0].split()[0])
+
+    return n_lines
+
+
 def mask_from_noncontiguous_indices(n, start_ind, stop_ind):
     '''Create boolean mask from start stop indices of noncontiguous regions
 
@@ -155,12 +168,17 @@ def get_dir_indices(msg, dirs):
     # Determine type of input
     if ',' in input_dirs:
         input_dir_indices = [int(x.strip()) for x in input_dirs.split(',')]
-    elif input_dirs is 'all':
+    elif 'all' in input_dirs:
         input_dir_indices = range(len(dirs))
     else:
-        input_dir_indices = [int(input_dirs.strip()),]
+        try:
+            input_dir_indices = [int(input_dirs.strip()),]
+        except:
+            raise ValueError('Could not determine input type for input: '
+                             '{}'.format(input_dirs))
 
     return input_dir_indices
+
 
 def normalized(a, axis=-1, order=2):
     '''Return normalized vector for arbitrary axis
