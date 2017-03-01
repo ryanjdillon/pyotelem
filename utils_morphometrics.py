@@ -1,4 +1,59 @@
 
+def apply_mods(mass_kg, dens_kgm3, mod_type, n_mods, length=None, girth=None,
+        dsw_kgm3=1028.0):
+    '''Estimate change in buoyancy with floats or weights
+
+    Args
+    ----
+    mass_kg: float
+        mass of the seal (kg)
+    dens_kgm3: float
+        mass of the seal (kg/m^3)
+    mod_type: str
+        Type of modication block for experiment (`weight` or `float`)
+    n_mods: int
+        number of modifying blocks attached
+    length: float
+        length of seal (m)
+    girth: float
+        girth of seal (m)
+
+    Returns
+    -------
+    total_dens: float
+        combined density of seal and attached blocks
+
+    Notes
+    -----
+    Block attributes from correspondance with Martin, differ from Kagari's
+    '''
+
+    # Only update density if 'weight' or 'float' mod_type
+    if (mod_type == 'weight') or (mod_type == 'float'):
+
+        # Cacluate seal volume
+        if (length is not None) and (girth is not None):
+            _, seal_vol = surf_vol(length, girth)
+        else:
+            seal_vol = mass_kg / dens_kgm3
+
+        # Modifier block attributes
+        mod_vol  = 0.15 * 0.04 * 0.03 # Length x Width x Height (m^3)
+        mod_dens = {'weight': 3556.0, 'float': 744.0}
+        mod_mass = {'weight': 0.640,  'float': 0.134}
+
+        # Calculate combined density
+        total_mass = (mass_kg + (n_mods * mod_mass[mod_type]))
+        total_vol  = (seal_vol + (n_mods * mod_vol))
+        total_dens = total_mass / total_vol
+
+    # Density of seal unchanged if not 'weight' or 'float' (i.e. 'control', 'neutral')
+    else:
+        total_dens = dens_kgm3
+
+    return total_dens
+
+
 def lung_capacity(mass):
     '''Caclulate lung capacity Kooyman and Sinnett (1981)'''
     return 0.135*(mass**0.92)
@@ -125,23 +180,31 @@ def dens2lip(seal_dens, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994, a_d
     return p_all
 
 
-def buoyant_force(sw_dens=1.028, seal_dens=1.053, seal_length=300,
-        seal_girth=200):
+def buoyant_force(dens, vol, sw_dens=1.028):
+    return (1000 * (sw_dens - dens)) * (1000 * vol) * 0.00981
 
-    surf, vol = surf_vol(seal_length, seal_girth)
 
-    return (1000 * (sw_dens - seal_dens)) * (1000 * vol) * 0.00981
+def total_buoyant_force(dens_kgm3, vol_m3, sw_dens=1028.0):
+    '''Cacluate buoyant force of object in flued
+
+    Density (fluid displaced) * volume (displaced) * gravity
+    '''
+    g  = 9.80665                  # m/s^2
+    bf = sw_dens * vol_m3 * g     # kg/m^3 * m^3 * m/s^2 = kg*m/s^2 (N)
+    w  = -((dens_kgm3 * vol_m3) * g)
+
+    return bf + w
 
 
 def diff_speed(sw_dens=1.028, seal_dens=1.053, seal_length=300, seal_girth=200,
         CD=0.09):
     import numpy
 
-    surf = 1000 * (surf_vol(seal_length, seal_girth))[0]
+    surf, vol = surf_vol(seal_length, seal_girth)
 
-    BF = buoyant_force()
+    BF = buoyant_force(seal_dens, vol, sw_dens)
 
-    V = 2 * (BF/(CD * sw_dens * surf))
+    V = 2 * (BF/(CD * sw_dens * (surf*1000)))
 
     if V >= 0:
         V = numpy.sqrt(V)
@@ -165,8 +228,8 @@ def surf_vol(length, girth):
     cr   = stll / 2
     e    = numpy.sqrt(1-(ar**2/cr**2))
 
-    surf = ((2*numpy.pi * ari**2) + (2 * numpy.pi * \
-           ((ar * cr)/e)) * 1/(numpy.sin(e)))
+    surf = ((2*numpy.pi * ar**2) + \
+           (2 * numpy.pi * ((ar * cr)/e)) * 1/(numpy.sin(e)))
 
     vol  = (((4/3) * numpy.pi)*(ar**2) * cr)
 
