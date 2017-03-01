@@ -1,4 +1,17 @@
 
+def nearest(items, pivot):
+    '''Find nearest value in array, including datetimes'''
+    return min(items, key=lambda x: abs(x - pivot))
+
+
+def add_col(df, col_name, values):
+    '''Add column `col_name` dataframe with values
+
+    df = add_col(df, col_name, numpy.full(len(df), numpy.nan))
+    '''
+    return df.assign(**{col_name:values})
+
+
 def get_n_lines(file_path):
     '''Get number of lines by calling bash command wc'''
     import os
