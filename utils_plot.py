@@ -11,6 +11,42 @@ colors = seaborn.color_palette()
 linewidth = 0.5
 
 
+# Data Exploration
+#------------------------------------------------------------------------------
+def compare_sensors(param, singles=False, cfg_paths_fname='./cfg_paths.yaml'):
+    '''Compare data accross data files in acclerometer data folder
+    '''
+    import matplotlib.pyplot as plt
+    import os
+    import pandas
+    import seaborn
+
+    from rjdtools import yaml_tools
+
+    cfg_paths = yaml_tools.read_yaml(cfg_paths_fname)
+    root_data = os.path.join(cfg_paths['root'], cfg_paths['acc'])
+
+    c = 0
+    # Ugly color palette for us color-blind people, could be improved
+    dir_list = sorted(os.listdir(root_data))
+    colors = seaborn.color_palette("Paired", len(dir_list))
+    for d in dir_list:
+        if os.path.isdir(d):
+            for f in os.listdir(os.path.join(root_data, d)):
+                if f.startswith('pydata'):
+                    fname = os.path.join(root_data, d, f)
+                    data = pandas.read_pickle(fname)
+                    plt.plot(data[param], label=f, color=colors[c])
+                    c += 1
+                    if singles:
+                        plt.legend()
+                        plt.show()
+    if not singles:
+        plt.legend()
+        plt.show()
+
+    return None
+
 # Utils
 #------------------------------------------------------------------------------
 
@@ -619,6 +655,34 @@ def plot_sgls(depths, data_sgl_mask, sgls, sgl_mask, pitch_lf, roll_lf, heading_
     # Plot shaded areas
     ax1 = plot_shade_mask(ax1, ~data_sgl_mask)
     ax2 = plot_shade_mask(ax2, ~data_sgl_mask)
+
+    plt.show()
+
+    return None
+
+
+def sgl_density(sgls, depths, mask_des, mask_asc):
+    '''Plot density of subglides over time for whole exp, des, and asc'''
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+
+
+    sns.set(style="white", color_codes=True)
+
+    mask_all = numpy.ones(len(data), dtype=bool)
+
+    jointplots = list()
+    #fig, (ax1, ax2, ax3) = plt.subplots(1, 3, sharex=True, sharey=True)
+    fig = plt.figure()
+    for mask in [mask_all, mask_des, mask_asc]:
+        #sgl_x = time, mid between start and finish
+        #sgl_y = depth, calc avg over sgl time
+        g = sns.jointplot(x=data[mask].index, y=data[mask]['depth'], kind='hex')
+        jointplots.append(g)
+
+    for g in jointplots:
+        for ax in g.fig.axes:
+            fig._axstack.add(fig._make_key(ax), ax)
 
     plt.show()
 
