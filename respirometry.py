@@ -1,14 +1,3 @@
-def get_n_lines(file_path):
-    '''Get number of lines by calling bash command wc'''
-    import os
-    import subprocess
-
-    cmd = 'wc -l {0}'.format(file_path)
-    output = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE).stdout
-    n_lines = int((output).readlines()[0].split()[0])
-
-    return n_lines
-
 
 def read_header(fileio):
     '''Read information rows from respirometry files
@@ -84,8 +73,10 @@ def read_respirometry(file_path):
     import pandas
     import numpy
 
+    import utils
+
     # Create oversized numpy array for data
-    n_lines = get_n_lines(file_path)
+    n_lines = utils.get_n_lines(file_path)
 
     data = numpy.zeros((n_lines,4), dtype=object)#n_lines, dtype=dtypes)
     data[:] = numpy.nan
