@@ -348,6 +348,9 @@ def split_glides(n_samples, dur, fs_a, GL, min_dur=None):
     # Stack and transpose indices into shape (n, 2)
     SGL = numpy.vstack((sgl_start_ind, sgl_end_ind)).T
 
+    # Filter out subglides that fall outside of sensor data indices
+    SGL =  SGL[(SGL[:, 0] >= 0) & (SGL[:, 1] < n_samples)]
+
     # check that all subglides have a duration of `ndur` seconds
     sgl_ndur = SGL[:, 1] - SGL[:, 0]
 
