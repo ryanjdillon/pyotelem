@@ -50,60 +50,120 @@ def filter_sgls(n_samples, exp_ind, sgls, max_pitch, min_depth,
     return data_sgl_mask, sgls_mask
 
 
-def compile_experiments(root_path, glide_path, manual_selection=True):
+def get_subdir(path, cfg):
+    import os
+
+    import utils
+
+    def match_subdir(path, cfg):
+        import numpy
+
+        n_subdirs = 0
+        for d in os.listdir(path):
+            if os.path.isdir(os.path.join(path, d)):
+                n_subdirs += 1
+
+        if n_subdirs == 0:
+            raise SystemError('No data subdirectories in {}'.format(path))
+
+        params = utils.parse_subdir(path)
+        mask = numpy.zeros(n_subdirs, dtype=bool)
+
+        # Evalute directory params against configuration params
+        # Set directory mask to True where all parameters are matching
+        for i in range(len(params)):
+            match = list()
+            for key, val in cfg.items():
+                if params[key].iloc[i] == val:
+                    match.append(True)
+                else:
+                    match.append(False)
+            mask[i] = all(match)
+
+        idx = numpy.where(mask)[0]
+        if idx.size > 1:
+            raise SystemError('More than one matching directory found')
+        else:
+            idx = idx[0]
+            return params['name'].iloc[idx]
+
+
+    # TODO this requires that each exp have same paramter values as in
+    # cfg dict (i.e. cfg_ann and cfg_mcmc yaml)
+    subdir_glide = match_subdir(path, cfg['glides'])
+
+    path = os.path.join(path, subdir_glide)
+    subdir_sgl   = match_subdir(path, cfg['sgls'])
+
+    path = os.path.join(path, subdir_sgl)
+    subdir_filt  = match_subdir(path, cfg['filter'])
+
+    return os.path.join(subdir_glide, subdir_sgl, subdir_filt)
+
+
+def compile_experiments(path_root, path_glide, cfg, fname_sgls,
+        fname_mask_sgls, manual_selection=True):
     '''Compile data from experiments into three dataframes for MCMC input'''
     import numpy
     import os
     import pandas
 
     import utils
-
-    sgls_filename = 'glide_sgls.p'
-    sgls_mask_filename = 'glide_sgls_mask.npy'
+    from rjdtools import yaml_tools
 
     # List of paths to process
-    exp_paths = list()
+    path_exps = list()
 
     # Empty lists for appending IDs of each experiment
     exp_ids    = list()
     animal_ids = list()
     tag_ids    = list()
 
-    print('\nCompiling glide analysis output to single files for model input.\n')
+    print('''
+          ┌----------------------------------------------------------------┐
+          | Compiling glide analysis output to single file for model input |
+          └----------------------------------------------------------------┘
+          ''')
 
     # Iterate through experiment directories in glide analysis path
     first_iter = True
 
     # Generate list of possible paths to process in glide directory
     glide_data_paths_found = False
-    for exp_path in os.listdir(os.path.join(root_path, glide_path)):
-        glide_data_path = os.path.join(root_path, glide_path, exp_path)
+    for path_exp in os.listdir(os.path.join(path_root, path_glide)):
+        glide_data_path = os.path.join(path_root, path_glide, path_exp)
         if os.path.isdir(glide_data_path):
-            exp_paths.append(exp_path)
+            path_exps.append(path_exp)
             glide_data_paths_found = True
 
     # Throw exception if no data found in glide path
     if not glide_data_paths_found:
         raise SystemError('No glide paths found, check input directories '
                           'for errors\n'
-                          'root_path: {}\n'
-                          'glide_path: {}\n'.format(root_path, glide_path))
+                          'path_root: {}\n'
+                          'path_glide: {}\n'.format(path_root, path_glide))
 
     # Run manual input data path selection, else process all present paths
+    path_exps = sorted(path_exps)
     if manual_selection:
         msg = 'path numbers to compile to single dataset.\n'
-        process_ind = utils.get_dir_indices(msg, exp_paths)
+        process_ind = utils.get_dir_indices(msg, path_exps)
     else:
-        process_ind = range(len(exp_paths))
+        process_ind = range(len(path_exps))
 
     # Process user selected paths
     for i in process_ind:
-        exp_path = exp_paths[i]
+        path_exp = path_exps[i]
 
-        print('Processing {}'.format(exp_path))
+        # Concatenate data path
+        glide_data_path = os.path.join(path_root, path_glide, path_exp)
+        subdir_path = get_subdir(glide_data_path, cfg)
+        glide_data_path = os.path.join(glide_data_path, subdir_path)
+
+        print('Processing {}'.format(path_exp))
 
         # Get experiment/animal ID from directory name
-        exp_id    = exp_path
+        exp_id    = path_exp
         tag_id    = exp_id.split('_')[2]
         animal_id = exp_id.split('_')[3]
 
@@ -113,12 +173,12 @@ def compile_experiments(root_path, glide_path, manual_selection=True):
         tag_ids.append(tag_id)
 
         # Read sgls dataframe, filter out only desired columns
-        sgls_path = os.path.join(glide_data_path, sgls_filename)
+        sgls_path = os.path.join(glide_data_path, fname_sgls)
         sgls_exp  = pandas.read_pickle(sgls_path)
 
         # Filter with saved mask meeting criteria
         # TODO pass filter routine as parameter to make more general
-        sgls_mask_path = os.path.join(glide_data_path, sgls_mask_filename)
+        sgls_mask_path = os.path.join(glide_data_path, fname_mask_sgls)
         sgls_mask      = numpy.load(sgls_mask_path)
         sgls_exp       = sgls_exp[sgls_mask]
 
@@ -167,141 +227,85 @@ def __add_ids_to_df(df, exp_id, animal_id=None, tag_id=None):
     return df
 
 
-def read_bodycondition(filename):
-    '''Reads body condition csv or pandas pickle and add density column'''
-    import os
-    import pandas
-
-    import utils_morphometrics
-
-    # TODO make columns uniform for body composition
-
-    # Read to pandas dataframe
-    if filename.endswith('.csv'):
-        bc = pandas.read_csv(filename)
-    elif filename.endswith('.p'):
-        bc = pandas.read_pickle(filename)
-    else:
-        raise SystemError('Filename must be either .csv or pandas .p '
-                          'pickle format.')
-
-    # Remove any extra whitespace in titles or animal str column
-    bc.rename(columns= lambda x: x.strip())
-    bc['animal'] = list(map(str.strip, bc['animal']))
-
-    # Get percent body compositions, including density - what we want
-    perc_comps = utils_morphometrics.lip2dens(bc['fat_perc'])
-    bc['density'] = perc_comps['density']
-
-    # Write as pandas pickle file to same directory
-    bc.to_pickle(os.path.splitext(filename)[0]+'.p')
-
-    return bc
-
-
-def create_ann_inputs(root_path, acc_path, glide_path, ann_path, bc_path, bc_filename,
-        sgl_cols, manual_selection=True):
+def create_ann_inputs(path_root, path_acc, path_glide, path_ann, path_bc, fname_bc,
+        fname_sgls, fname_mask_sgls, sgl_cols, manual_selection=True):
     '''Compile all experiment data for ann model input'''
     import numpy
     import os
     import pandas
 
-    def nearest(items, pivot):
-        return min(items, key=lambda x: abs(x - pivot))
+    from rjdtools import yaml_tools
 
-    def add_col(df, col_name, values):
-        '''Add column `col_name` dataframe with values'''
-        return df.assign(**{col_name:values})
-
-    def density_mod(mod, mod_n):
-        '''Calculate density modification given type and number of blocks'''
-        # Density of experimental blocks (kg/L)
-        # dims: 15x4x3cm, neutral blocks ~density of seawater
-        mod_dens = {'float':0.189, 'weight':3.55, 'neutral':0, 'control':0}
-        return mod_dens[mod]*mod_n
-
-    def insert_bc_col_to_sgls(root_path, acc_path, sgls, bc, col_name):
+    def insert_bc_col_to_sgls(sgls, bc):
         '''Insert bodycondition from nearest date in bc to sgls dataframes'''
-        import datetime
         import numpy
-        import tqdm
 
-        from rjdtools import yaml_tools
+        col_name = 'density_kgm3'
 
         # Create empty column for body condition target values
-        sgls = add_col(sgls, col_name, numpy.full(len(sgls), numpy.nan))
+        sgls = sgls.assign(**{col_name:numpy.full(len(sgls), numpy.nan)})
 
         exp_ids = numpy.unique(sgls['exp_id'].values)
 
-        for i in tqdm.tqdm(range(len(exp_ids))):
-            exp_id = exp_ids[i]
-            meta_path = os.path.join(root_path, acc_path, exp_id, 'meta.yaml')
-            meta = yaml_tools.read_yaml(meta_path)
-            mod   = meta['mod']   # type of block
-            mod_n = meta['mod_n'] # number of blocks
+        for exp_id in exp_ids:
+            # TODO if using buoyancy, calculate with local seawater density
 
-            # Get datetime from subglide `exp_id`
-            date_str = (exp_id.split('_'))[0]
-            sgl_dt = datetime.datetime.strptime(date_str, '%Y%m%d')
+            mask_sgl = sgls['exp_id'] == exp_id
+            mask_bc = bc['exp_id'] == exp_id
 
-            # Get `bc` mask from subglide's animal ID in `exp_id`
-            animal = (exp_id.split('_')[3]).lower()
-            bc_animal_mask = bc['animal'] == animal
-
-            # Make sure an entry for this animal exists in body condition data
-            if len(numpy.where(bc_animal_mask)) == 0:
-                raise KeyError('Animal ID `{}` not found in body condition '
-                               'dataframe `bc`.'.format(animal))
-
-            # find date in `bc` (filtered by animal) nearest sgl date
-            bc_dt = nearest(bc['date'][bc_animal_mask], sgl_dt)
-
-            # Get `bc` index position of nearest datetime
-            bc_idx = numpy.argmax(bc['date'] == bc_dt)
-
-            exp_mask = sgls['exp_id'] == exp_id
-            sgls[exp_mask] = bc[col_name].iloc[bc_idx] + density_mod(mod, mod_n)
-
-            # Write body condition value to `sgl` subglide row
-            # add density modification from attached blocks
-            # TODO review
-
+            try:
+                sgls.ix[mask_sgl, col_name] = bc.ix[mask_bc, 'total_dens']
+            except:
+                raise SystemError('{} has no associated entries in the body '
+                                  'composition dataframe'.format(exp_id))
         return sgls
 
+    cfg_analysis = yaml_tools.read_yaml('./cfg_ann.yaml')
+
     # Compile subglide inputs for all experiments
-    exps_all, sgls_all, dives_all = compile_experiments(root_path, glide_path)
+    exps_all, sgls_all, dives_all = compile_experiments(path_root,
+                                                        path_glide,
+                                                        cfg_analysis['data'],
+                                                        fname_sgls,
+                                                        fname_mask_sgls)
 
     # Read body condition data
-    bc_file_path = os.path.join(root_path, bc_path, bc_filename)
-    bc = read_bodycondition(bc_file_path)
+    bc_file_path = os.path.join(path_root, path_bc, fname_bc)
+    bc = pandas.read_pickle(bc_file_path)
 
-    # TODO review columns useful for ann
+    # Extract only columns useful for ann
     sgls = sgls_all[sgl_cols]
 
     # Add column with body condition target values to `sgls`
-    sgls = insert_bc_col_to_sgls(root_path, acc_path, sgls, bc, 'density')
-
-    # TODO normalize input fields
+    sgls = insert_bc_col_to_sgls(sgls, bc)
 
     # Save output
-    sgls_all.to_pickle(os.path.join(root_path, ann_path, 'sgls_all.p'))
-    #exps_all.to_pickle(os.path.join(root_path, mcmc_path, 'exps_all.p'))
-    #dives_all.to_pickle(os.path.join(root_path, mcmc_path, 'dives_all.p'))
+    sgls_all.to_pickle(os.path.join(path_root, path_ann, 'sgls_all.p'))
+    #exps_all.to_pickle(os.path.join(path_root, path_mcmc, 'exps_all.p'))
+    #dives_all.to_pickle(os.path.join(path_root, path_mcmc, 'dives_all.p'))
 
     return exps_all, sgls, dives_all
 
-def create_mcmc_inputs(root_path, glide_path, mcmc_path, sgl_cols,
-        manual_selection=True):
+
+def create_mcmc_inputs(path_root, path_glide, path_mcmc, fname_sgls,
+        fname_mask_sgls, sgl_cols, manual_selection=True):
     '''Add MCMC distribution fields to each MCMC input dataframe'''
     import os
     import numpy
 
+    from rjdtools import yaml_tools
+
     # TODO could create filter routine here to pass to compiler, pass arguments
     # for each input configuration, to generate inputs for model
 
+    cfg_analysis = yaml_tools.read_yaml('./cfg_ann.yaml')
+
     # Compile subglide inputs for all experiments
-    exps_all, sgls_all, dives_all = compile_experiments(root_path, glide_path,
-            manual_selection=manual_selection)
+    exps_all, sgls_all, dives_all = compile_experiments(path_root,
+                                                        path_glide,
+                                                        cfg_analysis['data'],
+                                                        fname_sgls,
+                                                        fname_mask_sgls)
 
     # Desired columns to extract from subglide analysis output
     sgls_all = sgls_all[sgl_cols]
@@ -317,9 +321,9 @@ def create_mcmc_inputs(root_path, glide_path, mcmc_path, sgl_cols,
     dives_all = __add_fields(dives_all, dive_new, numpy.nan)
 
     # Save output
-    exps_all.to_pickle(os.path.join(root_path, mcmc_path, 'exps_all.p'))
-    sgls_all.to_pickle(os.path.join(root_path, mcmc_path, 'sgls_all.p'))
-    dives_all.to_pickle(os.path.join(root_path, mcmc_path, 'dives_all.p'))
+    exps_all.to_pickle(os.path.join(path_root, path_mcmc, 'exps_all.p'))
+    sgls_all.to_pickle(os.path.join(path_root, path_mcmc, 'sgls_all.p'))
+    dives_all.to_pickle(os.path.join(path_root, path_mcmc, 'dives_all.p'))
 
     return exps_all, sgls_all, dives_all
 
@@ -335,31 +339,38 @@ if __name__ == '__main__':
     from rjdtools import yaml_tools
 
     paths      = yaml_tools.read_yaml('./cfg_paths.yaml')
-    root_path  = paths['root']
-    acc_path   = paths['acc']
-    glide_path = paths['glide']
-    mcmc_path  = paths['mcmc']
-    ann_path   = paths['ann']
-    bc_path    = paths['bodycondition']
+    path_root  = paths['root']
+    path_acc   = paths['acc']
+    path_glide = paths['glide']
+    path_mcmc  = paths['mcmc']
+    path_ann   = paths['ann']
+    path_bc    = paths['bodycondition']
+
+    fname_sgls      = 'data_sgls.p'
+    fname_mask_sgls = 'mask_sgls_filt.p'
 
     # Compile processed subglide data for MCMC model
     sgl_cols = ['exp_id', 'dive_id', 'mean_speed', 'mean_depth',
                 'mean_sin_pitch', 'mean_swdensity', 'mean_a', 'SE_speed_vs_time']
 
-    mcmc_exps, mcmc_sgls, mcmc_dives = create_mcmc_inputs(root_path,
-                                                          glide_path,
-                                                          mcmc_path,
+    mcmc_exps, mcmc_sgls, mcmc_dives = create_mcmc_inputs(path_root,
+                                                          path_glide,
+                                                          path_mcmc,
+                                                          fname_sgls,
+                                                          fname_mask_sgls,
                                                           sgl_cols)
 
     # Compile processed subglide data for ANN model
     sgl_cols = ['exp_id', 'mean_speed', 'total_depth_change',
                 'mean_sin_pitch', 'mean_swdensity', 'SE_speed_vs_time']
 
-    bc_filename = 'bc_no-tag_skinny_yellow.p'
-    ann_exps, ann_sgls, ann_dives = create_ann_inputs(root_path,
-                                                      acc_path,
-                                                      glide_path,
-                                                      ann_path,
-                                                      bc_path,
-                                                      bc_filename,
+    fname_bc = 'coexist_experiments.p'
+    ann_exps, ann_sgls, ann_dives = create_ann_inputs(path_root,
+                                                      path_acc,
+                                                      path_glide,
+                                                      path_ann,
+                                                      path_bc,
+                                                      fname_bc,
+                                                      fname_sgls,
+                                                      fname_mask_sgls,
                                                       sgl_cols)
