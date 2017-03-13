@@ -1,6 +1,6 @@
 
-def get_stroke_freq(Ax, Az, fs_a, f, nperseg, peak_thresh, auto_select=False,
-        default_cutoff=True):
+def get_stroke_freq(Ax, Az, fs_a, nperseg, peak_thresh, auto_select=False,
+        stroke_ratio=None):
     '''Determine stroke frequency to use as a cutoff for filtering
 
     Args
@@ -23,9 +23,9 @@ def get_stroke_freq(Ax, Az, fs_a, f, nperseg, peak_thresh, auto_select=False,
 
     Returns
     -------
-    cutoff: float
+    cutoff_frq: float
         cutoff frequency of signal (Hz) to be used for low/high-pass filtering
-    stroke_f: float
+    stroke_frq: float
         frequency of dominant wavelength in signal
 
     Notes
@@ -44,94 +44,120 @@ def get_stroke_freq(Ax, Az, fs_a, f, nperseg, peak_thresh, auto_select=False,
     Output: S is the amount of power in each particular frequency (f)
     '''
 
-    def automatic_freq(x, fs_a, nperseg, peak_thresh):
-        '''Find peak of FFT PSD and set cutoff and stroke freq by this'''
-        import utils_signal
+    #def plot_PSD_peaks(f, S, max_ind, min_ind, stroke_ratio_idx):
+    #    import matplotlib.pyplot as plt
 
-        f_welch, S, _, _ = utils_signal.calc_PSD_welch(x, fs_a, nperseg)
+    #    peak_x = f[max_ind]
+    #    peak_y = S[max_ind]
+    #    low_x = f[min_ind]
+    #    low_y = S[min_ind]
+    #    plt.plot(f, S)
+    #    plt.scatter(peak_x, peak_y)
+    #    plt.scatter(low_x, low_y)
+    #    plt.scatter(f[stroke_ratio_idx], S[stroke_ratio_idx])
+    #    plt.show()
 
-        smooth_S = utils_signal.runmean(S, 10)
+    #    return None
 
-        # TODO check that arguments are same as dtag2 peakfinder
-        peak_loc, peak_mag = utils_signal.peakfinder(S, sel=None, thresh=peak_thresh)
+    #def auto_cutoff(f, S):
+    #    import utils
+    #    import utils_signal
 
-        peak_mag = peak_mag - smooth_S[peak_loc]
-        peak_idx = peak_loc[peak_mag == max(peak_mag)]
+    #    # Find index positions of local maxima and minima in PSD
+    #    delta = S.max()/1000
+    #    max_ind, min_ind = utils_signal.simple_peakfinder(range(len(S)), S,
+    #                                                      delta)
+    #    max0 = max_ind[0]
+    #    min0 = min_ind[0]
 
-        min_f    = numpy.min(S[:peak_idx])
-        idx_f    = numpy.argmin(S[:peak_idx])
+    #    # Get percentage after max peak to use as filter cutoff
+    #    stroke_ratio = 100*S[min0]/S[max0]
 
-        cutoff         = f_welch[idx_f]
-        stroke_f       = f_welch[peak_idx]
+    #    # Find nearest PSD value between first peak and trough that matches
+    #    nearest_S = utils.nearest(S[max0:min0], stroke_ratio*S[max0])
 
-        return cutoff, stroke_f
+    #    # Get index position of this point and associated frequency for cuttoff
+    #    stroke_ratio_idx = max0 + numpy.where(S==nearest_S)[0][0]
+    #    cutoff = f[stroke_ratio_idx]
 
+    #    return cutoff, stroke_ratio
 
-    def manual_freq(x, fs_a, nperseg, peak_thresh, title):
-        '''Manually look at plot, then enter cutoff frequency for x,y,z'''
-        import matplotlib.pyplot as plt
-
-        import utils
-        import utils_plot
-        import utils_signal
-
-        f_welch, S, _, _ = utils_signal.calc_PSD_welch(x, fs_a, nperseg)
-
-        # TODO this is a number that just works, better solution? put in cfg?
-        sel = 8/fs_a
-        peak_loc, peak_mag = utils_signal.peakfinder(S, sel=sel, peak_thresh=peak_thresh)
-        peak_idx = peak_loc[peak_mag == max(peak_mag)]
-
-        # Plot power specturm against frequency distribution
-        utils_plot.plot_welch_peaks(f_welch, S, peak_loc, title=title)
-
-        # Get user input of cutoff frequency identified off plots
-        cutoff = utils.recursive_input('cutoff frequency', float)
-        stroke_f = f_welch[peak_idx]
-
-        return cutoff, stroke_f
-
+    import matplotlib.pyplot as plt
     import numpy
 
-    # Temporary error checking to be sure `auto_select` place holder not used
-    if auto_select == True:
-        raise SystemError('The automatic `stroke_f` selection method needs '
-                          'further testing--implementation not active')
+    import utils
+    import utils_plot
+    import utils_signal
 
-    # Axes to be used for determining `stroke_f`
+    # Axes to be used for determining `stroke_frq`
     stroke_axes = [(0,'x','dorsa-ventral', Ax),
                    (2,'z','lateral', Az)]
 
     # Lists for appending values from each axis
-    cutoff_all   = list()
-    stroke_f_all = list()
-    f_all        = list()
+    cutoff_frqs   = list()
+    stroke_frqs   = list()
+    stroke_ratios = list()
 
     # Iterate over axes in `stroke_axes` list appending output to above lists
     for i, i_alph, name, data in stroke_axes:
+
+        frqs, S, _, _ = utils_signal.calc_PSD_welch(data, fs_a, nperseg)
+
+        # Find index positions of local maxima and minima in PSD
+        delta = S.max()/1000
+        max_ind, min_ind = utils_signal.simple_peakfinder(range(len(S)), S,
+                                                          delta)
+        #peak_loc = peak_loc[S[peak_loc] > peak_thresh]
+
+        max0 = max_ind[0]
+
+        # TODO hack fix, improve later
+        try:
+            min0 = min_ind[0]
+        except:
+            min0 = None
+            stroke_ratio = 0.4
+
+        stroke_frq = frqs[max0]
+
         # Auto calculate, else promter user for value after inspecting PSD plot
         if auto_select == True:
-            cutoff, stroke_f = automatic_freq(x, fs_a, nperseg, peak_thresh)
+            if min0 and not stroke_ratio:
+                # Get percentage after max peak to use as filter cutoff
+                stroke_ratio = 100*S[min0]/S[max0]
+
+            # Find nearest PSD value between first peak and trough that matches
+            nearest_S = utils.nearest(S[max0:], stroke_ratio*S[max0])
+
+            # Get index position of this point and associated frequency for cuttoff
+            stroke_ratio_idx = max0 + numpy.where(S==nearest_S)[0][0]
+
+            cutoff_frq   = frqs[stroke_ratio_idx]
+
         elif auto_select == False:
             title = 'PSD - {} axis (n={}), {}'.format(i_alph, i, name)
-            cutoff, stroke_f =  manual_freq(data, fs_a, nperseg, peak_thresh, title)
+            # Plot power specturm against frequency distribution
+            utils_plot.plot_welch_peaks(frqs, S, max_ind, title=title)
+
+            # Get user input of cutoff frequency identified off plots
+            cutoff_frq = utils.recursive_input('cutoff frequency', float)
 
         # Append values for axis to list
-        cutoff_all.append(cutoff)
-        stroke_f_all.append(stroke_f)
+        cutoff_frqs.append(cutoff_frq)
+        stroke_frqs.append(stroke_frq)
+        stroke_ratios.append(stroke_ratio)
 
     # Average values for all axes and update config dictionary
-    stroke_f = float(numpy.mean(stroke_f_all))
-    cutoff   = float(numpy.mean(cutoff_all))
+    cutoff_frq   = float(numpy.mean(cutoff_frqs))
+    stroke_frq   = float(numpy.mean(stroke_frqs))
 
-    if default_cutoff:
-        # leave cfg['f'] as value set in load_config(), do nothing
-        pass
-    else:
-        # Calculate `f` as per line 199 in the .m code
-        f = cutoff/stroke_f
+    # Handle exception of manual selection when `stroke_ratio == None`
+    try:
+        stroke_ratio = float(numpy.mean(stroke_ratios))
+    except:
+        stroke_ratio = None
 
-    return cutoff, stroke_f, f
+    return cutoff_frq, stroke_frq, stroke_ratio
 
 
 def get_stroke_glide_indices(A_g_hf, fs_a, J, t_max):
@@ -146,7 +172,7 @@ def get_stroke_glide_indices(A_g_hf, fs_a, J, t_max):
         number of acclerometer samples per second
 
     J: float
-        magnitude threshold for detecting a fluke stroke in m/s2.  If J is not
+        frequency threshold for detecting a fluke stroke in m/s2.  If J is not
         given, fluke strokes will not be located but the rotations signal (pry)
         will be computed.
 
@@ -332,12 +358,12 @@ def split_glides(n_samples, dur, fs_a, GL, min_dur=None):
     else:
         assert numpy.all(sgl_ndur == ndur)
 
-    # Create sgl_mask
-    sgl_mask = numpy.zeros(n_samples, dtype=bool)
+    # Create data_sgl_mask
+    data_sgl_mask = numpy.zeros(n_samples, dtype=bool)
     for start, stop in SGL.astype(int):
-        sgl_mask[start:stop] = True
+        data_sgl_mask[start:stop] = True
 
-    return SGL, sgl_mask
+    return SGL, data_sgl_mask
 
 
 def calc_glide_des_asc(depths, pitch_lf, roll_lf, heading_lf, swim_speed,
