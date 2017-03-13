@@ -1,4 +1,125 @@
 
+def cat_keyvalues(d, ignore):
+    '''Concatenate dictionary key, value pairs to a single string'''
+
+    items = list(d.items())
+    s = ''
+    for i in range(len(items)):
+        key, value = items[i]
+        if key not in set(ignore):
+            s += '{}_{}__'.format(key, value)
+
+    return s[:-2]
+
+
+def parse_subdir(path):
+    '''Parse parameters in directory names to pandas dataframe
+
+    Parameters are separated by double `_` and values by single. Names that
+    include an `_` are joined back together after they are split
+    '''
+    import os
+    import numpy
+    import pandas
+
+    dir_list = numpy.asarray(os.listdir(path), dtype=object)
+
+    # Search root directory for directories to parse
+    for i in range(len(dir_list)):
+        if os.path.isdir(os.path.join(path,dir_list[i])):
+            name = dir_list[i]
+            # Split parameters in name
+            dir_list[i] = dir_list[i].split('__')
+            for j in range(len(dir_list[i])):
+                param = dir_list[i][j].split('_')
+                # Join names with `_` back together, make key/value tuple
+                key = '_'.join(param[:-1])
+                value = param[-1]
+                if value == 'None':
+                    value = numpy.nan
+                param = (key, float(value))
+                dir_list[i][j] = param
+            # Convert list of tuples to dictionary
+            dir_list[i] = dict(dir_list[i])
+            # Add directory name to dict for later retrieval
+            dir_list[i]['name'] = name
+        else:
+            dir_list[i] = ''
+
+    # Remove entries that are files
+    dir_list = dir_list[~(dir_list == '')]
+
+    # Convert list of dictionaries to dictionary of lists
+    keys = dir_list[0].keys()
+    params = dict()
+    for i in range(len(dir_list)):
+        for key in dir_list[i]:
+            if key not in params:
+                params[key] = numpy.zeros(len(dir_list), object)
+            params[key][i] = dir_list[i][key]
+
+    return pandas.DataFrame(params)
+
+def get_versions(module_name):
+    '''Return versions for repository and packages in requirements file
+
+    Args
+    ----
+    module_name: str
+        Name of module calling this routine, stored with local git hash
+
+    Returns
+    -------
+    versions: OrderedDict
+        Dictionary of module name and dependencies with versions
+    '''
+    from collections import OrderedDict
+    import importlib
+    import os
+
+    versions = OrderedDict()
+
+    module = importlib.util.find_spec(module_name)
+
+    # Add git hash for pylleo to dict
+    versions[module_name] = get_githash('long')
+
+    # Get path to pylleo requirements file
+    module_path  = os.path.split(module.origin)[0]
+    requirements = os.path.join(module_path, 'requirements.txt')
+
+    # Add packages and versions to dictionary
+    with open(requirements) as f:
+        for l in f.readlines():
+            package, version = l.strip().split('==')
+            versions[package] = version
+
+    return versions
+
+
+def get_githash(hash_type):
+    '''Add git commit for reference to code that produced data
+
+    Args
+    ----
+    hash_type: str
+        keyword determining length of has. 'long' gives full hash, 'short'
+        gives 6 character hash
+
+    Returns
+    -------
+    git_hash: str
+        Git hash as a 6 or 40 char string depending on keywork `hash_type`
+    '''
+    import subprocess
+
+    cmd = dict()
+    cmd['long']  = ['git', 'rev-parse', 'HEAD']
+    cmd['short'] = ['git', 'rev-parse', '--short', 'HEAD']
+
+    return subprocess.check_output(cmd[hash_type]).decode('ascii').strip()
+
+
 def nearest(items, pivot):
     '''Find nearest value in array, including datetimes'''
     return min(items, key=lambda x: abs(x - pivot))
@@ -172,7 +293,7 @@ def get_dir_indices(msg, dirs):
              'can also be entered (e.g.  `0`)\n\n')
 
     # Generate paths text to display
-    dirs_str = ['{} {}\n'.format(i, p) for i, p in enumerate(dirs)]
+    dirs_str = ['{:2} {:60}\n'.format(i, p) for i, p in enumerate(dirs)]
     dirs_str = ''.join(dirs_str)
 
     # Concatenate `msg`, usage txt, and paths list for display before input
