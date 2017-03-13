@@ -139,38 +139,49 @@ def create_algorithm(train, valid, config, n_features, n_targets):
     if config['algorithm'] is 'sgd':
         config['momentum'] = 0.9
 
-    #train_loss = list()
-    #valid_loss = list()
-    #for train_monitor, valid_monitor in exp.itertrain(...):
-    #    train_loss.append(train_monitor['loss'])
-    #    valid_loss.append(valid_monitor['loss'])
+    import matplotlib.pyplot as plt
+    import seaborn
+    from collections import OrderedDict
 
-    ## Plot loss during training
-    #plt.plot(loss)
-    #plt.show()
+    # Create dictionary for storing monitor lists
+    attrs = ['loss', 'err', 'acc']
+    monitors = OrderedDict()
+    for mtype in ['train', 'valid']:
+        monitors[mtype] = dict()
+        for attr in attrs:
+            monitors[mtype][attr] = list()
 
-    # Train the model using SGD with momentum.
-    # user net.itertrain() for return monitors to plot
-    net.train(train,
-              valid,
-              algo=config['algorithm'],
-              patience=config['patience'],
-              min_improvement=config['min_improvement'],
-              validate_every =config['validate_every'],
-              #batch_size=batch_size,
-              #train_batches=train_batches,
-              #valid_batches=valid_batches,
-              learning_rate=config['learning_rate'],
-              momentum=config['momentum'],
-              hidden_l1=config['hidden_l1'],
-              weight_l2=config['weight_l2'],
-              )
+    # NOTE could just call with wrapper `net.train(...)`
+    for t_monitors, v_monitors in net.itertrain(train,
+                                                valid,
+                                                algo=config['algorithm'],
+                                                patience=config['patience'],
+                                                min_improvement=config['min_improvement'],
+                                                validate_every=config['validate_every'],
+                                                #batch_size=batch_size,
+                                                #train_batches=train_batches,
+                                                #valid_batches=valid_batches,
+                                                learning_rate=config['learning_rate'],
+                                                momentum=config['momentum'],
+                                                hidden_l1=config['hidden_l1'],
+                                                weight_l2=config['weight_l2'],
+                                                ):
+        for key in attrs:
+            monitors['train'][key].append(t_monitors[key])
+            monitors['valid'][key].append(v_monitors[key])
+
+    for attr in attrs:
+        plt.title(attr)
+        plt.plot(monitors['train'][attr], label='train')
+        plt.plot(monitors['valid'][attr], label='valid')
+        plt.legend()
+        plt.show()
 
     # Classify features against label/target value to get accuracy
     # where `valid` is a tuple with validation (features, label)
     accuracy = net.score(valid[0], valid[1])
 
-    return net, accuracy
+    return net, accuracy, monitors
 
 
 def get_best(results, key):
@@ -198,8 +209,8 @@ def tune_net(train, valid, test, configs, n_features, n_targets):
 
         t0 = time.time()
 
-        net, accuracy = create_algorithm(train, valid, configs[i], n_features,
-                                         n_targets)
+        net, accuracy, monitors = create_algorithm(train, valid, configs[i],
+                                                   n_features, n_targets)
 
         t1 = time.time()
 
@@ -259,8 +270,8 @@ def test_dataset_size(best_config, train, valid, test, n_features, n_targets,
 
         t0 = time.time()
 
-        net, accuracy = create_algorithm(train, valid, best_config, n_features,
-                                         n_targets)
+        net, accuracy, monitors = create_algorithm(train, valid, best_config,
+                                                   n_features, n_targets)
         t1 = time.time()
 
         results_dataset['config'][i]      = best_config
@@ -298,7 +309,7 @@ def test_dataset_size(best_config, train, valid, test, n_features, n_targets,
 #              help='Use single permutation of tuning parameters')
 
 
-def run(cfg_paths_path, cfg_ann_path, debug=False):
+def run(file_cfg_paths, path_cfg_ann, debug=False):
     '''
     Compile subglide data, tune network architecture and test dataset size
 
@@ -331,7 +342,7 @@ def run(cfg_paths_path, cfg_ann_path, debug=False):
     theano.config.compute_test_value = 'ignore'
 
     # Configuration settings
-    cfg = yaml_tools.read_yaml(cfg_ann_path)
+    cfg = yaml_tools.read_yaml(path_cfg_ann)
     if debug is True:
         for key in cfg['net_tuning'].keys():
             cfg['net_tuning'][key] = [cfg['net_tuning'][key][0],]
@@ -341,13 +352,16 @@ def run(cfg_paths_path, cfg_ann_path, debug=False):
     cfg['output']['results_path'] = 'theanets_{}'.format(now)
 
     # Define paths
-    paths       = yaml_tools.read_yaml(cfg_paths_path)
-    root_path   = paths['root']
-    acc_path    = paths['acc']
-    glide_path  = paths['glide']
-    ann_path    = paths['ann']
-    bc_path     = paths['bodycondition']
-    bc_filename = 'bc_no-tag_skinny_yellow.p'
+    paths = yaml_tools.read_yaml(file_cfg_paths)
+
+    path_root       = paths['root']
+    path_acc        = paths['acc']
+    glide_path      = paths['glide']
+    path_ann        = paths['ann']
+    path_bc         = paths['bodycondition']
+    fname_bc        = 'coexist_experiments.p'
+    fname_sgls      = 'data_sgls.p'
+    fname_mask_sgls = 'mask_sgls_filt.p'
 
 
     # Compile, split, and normalize data
@@ -355,14 +369,17 @@ def run(cfg_paths_path, cfg_ann_path, debug=False):
     print('Compile output from glides into ANN input')
 
     # Compile output from glides into single input dataframe
-    exps, sgls, dives = utils_data.create_ann_inputs(root_path,
-                                                     acc_path,
+    exps, sgls, dives = utils_data.create_ann_inputs(path_root,
+                                                     path_acc,
                                                      glide_path,
-                                                     ann_path,
-                                                     bc_path,
-                                                     bc_filename,
+                                                     path_ann,
+                                                     path_bc,
+                                                     fname_bc,
+                                                     fname_sgls,
+                                                     fname_mask_sgls,
                                                      cfg['data']['sgl_cols'],
                                                      manual_selection=True)
+
     # TODO review outcome of this
     # TODO add num. ascent/descent glides to cfg
     sgls = sgls.dropna()
@@ -422,22 +439,31 @@ def run(cfg_paths_path, cfg_ann_path, debug=False):
 
     # Save results and configuration to output directory
     #---------------------------------------------------------------------------
-    out_path = os.path.join(root_path, ann_path, cfg['output']['results_path'])
+    out_path = os.path.join(path_root, path_ann, cfg['output']['results_path'])
     os.makedirs(out_path, exist_ok=True)
 
-    yaml_tools.write_yaml(cfg, os.path.join(out_path, cfg_ann_path))
+    yaml_tools.write_yaml(cfg, os.path.join(out_path, path_cfg_ann))
     results_tune.to_pickle(os.path.join(out_path, cfg['output']['tune_fname']))
     results_dataset.to_pickle(os.path.join(out_path, cfg['output']['dataset_size_fname']))
 
     return cfg, train, valid, test, results_tune, results_dataset
 
 
+def print_results_accuracy(results_dataset, test):
+    '''Print accuracies of all nets in results on test dataset'''
+
+    for i, net in enumerate(results_dataset['net']):
+        accuracy = net.score(test[0], test[1])
+        print('[{}] accuracy: {}'.format(i, accuracy))
+
+    return None
+
 if __name__ == '__main__':
     #cfg, results_tune, results_dataset = run()
 
-    cfg_paths_path = './cfg_paths.yaml'
-    cfg_ann_path   = './cfg_ann.yaml'
+    file_cfg_paths = './cfg_paths.yaml'
+    path_cfg_ann   = './cfg_ann.yaml'
     debug = True
-    cfg, train, valid, test, results_tune, results_dataset = run(cfg_paths_path,
-                                                                 cfg_ann_path,
+    cfg, train, valid, test, results_tune, results_dataset = run(file_cfg_paths,
+                                                                 path_cfg_ann,
                                                                  debug=debug)
