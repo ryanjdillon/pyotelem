@@ -240,7 +240,7 @@ def create_ann_inputs(path_root, path_acc, path_glide, path_ann, path_bc, fname_
         '''Insert bodycondition from nearest date in bc to sgls dataframes'''
         import numpy
 
-        col_name = 'density_kgm3'
+        col_name = 'total_dens'
 
         # Create empty column for body condition target values
         sgls = sgls.assign(**{col_name:numpy.full(len(sgls), numpy.nan)})
@@ -254,7 +254,9 @@ def create_ann_inputs(path_root, path_acc, path_glide, path_ann, path_bc, fname_
             mask_bc = bc['exp_id'] == exp_id
 
             try:
-                sgls.ix[mask_sgl, col_name] = bc.ix[mask_bc, 'total_dens']
+                value = bc.ix[mask_bc, 'total_dens'].values[0]
+                print(value, type(value))
+                sgls.ix[mask_sgl, col_name] = value
             except:
                 raise SystemError('{} has no associated entries in the body '
                                   'composition dataframe'.format(exp_id))
