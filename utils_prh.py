@@ -86,13 +86,13 @@ def triaxial_integration(x, y, z, initial=0):
     return x_int, y_int, z_int
 
 
-def speed_from_acc_and_ref(x, fs_a, rel_speed, zero_level, theoretic_max=None,
+def speed_from_acc_and_ref(acc_x, fs_a, rel_speed, zero_level, theoretic_max=None,
         rm_neg=True):
     '''Estimate speed from x-axis acceleration, fitting to relative speed data
 
     Args
     ----
-    x: ndarray
+    acc_x: ndarray
         x-axis acceleromter data, same axis of movement as relative speed sensor
     fs_a: float
         sampling frequency of accelerometer sensor
@@ -105,7 +105,7 @@ def speed_from_acc_and_ref(x, fs_a, rel_speed, zero_level, theoretic_max=None,
 
     Returns
     -------
-    x_speed_cal: ndarray
+    speed_cal: ndarray
         relative speed data calibrated to the curve fit to the integrated speed
         from the accelerometer data
 
@@ -127,29 +127,36 @@ def speed_from_acc_and_ref(x, fs_a, rel_speed, zero_level, theoretic_max=None,
 
     from bodycondition import utils
 
-    x_speed = numpy.zeros(len(rel_speed), dtype=float)
+    speed     = numpy.zeros(len(rel_speed), dtype=float)
+    speed_cal = numpy.zeros(len(rel_speed), dtype=float)
 
     # Get indices of data sections split by known zero velocities
     nonzero_mask = (rel_speed > zero_level) & (~numpy.isnan(rel_speed)) & \
-                   (~numpy.isnan(x))
+                   (~numpy.isnan(acc_x))
     start_ind, stop_ind = utils.contiguous_regions(nonzero_mask)
 
     # Estimate speed in regions between known points of zero velocity
     for start_idx, stop_idx in zip(start_ind, stop_ind):
-        xi = x[start_idx:stop_idx]
+        y = acc_x[start_idx:stop_idx]
+        # Make x in units of seconds for Hz # TODO TBC
+        x = numpy.arange(0, len(y)) * fs_a
 
         # Integrate acceleration signal over periods where the relative
         # velocity sensor data is 'zero' velocity
-        x_int = scipy.integrate.cumtrapz(range(len(xi)), xi, initial=0)
+        vel = scipy.integrate.cumtrapz(x, y, initial=0)
 
         # Assign total velocity to slice of acc_speed array
-        x_speed[start_idx:stop_idx] = x_int
+        speed[start_idx:stop_idx] = vel
 
     # Fit integrated accelerometer speed to relative speed sensor data
-    measured = rel_speed[:]
-    calibration = x_speed/fs_a
+    measured    = rel_speed[:]
+    calibration = speed#/fs_a #TODO remove, not correct
+
+    # Fix for fitting data, otherwise got negative gain
+    #calibration[calibration < 0] = 0
 
     # Generate input array as per numpy docs and apply least-squares regression
+    # (i.e. generate coefficient matrix, each column term in f(x))
     A = numpy.vstack([measured, numpy.ones(len(measured))]).T
     gain, offset = numpy.linalg.lstsq(A, calibration)[0]
 
@@ -159,11 +166,67 @@ def speed_from_acc_and_ref(x, fs_a, rel_speed, zero_level, theoretic_max=None,
         gain = (theoretic_max-offset)/measured.max()
 
     # Apply calibration to relative speed sensor data
-    x_speed_cal = (measured*gain)+offset
+    # Do not apply offset when relative speed sensor is zero
+    # TODO smooth this? creates a little bit jagged speeds
+    mask = rel_speed > 0
+    #speed_cal[mask] = (gain*measured[mask])+offset
+    speed_cal = (gain*measured)+offset
 
     # Set values below zero to NaN if switch set
     if rm_neg is True:
-        x_speed_cal[x_speed_cal < 0] = numpy.nan
+        speed_cal[speed_cal < 0] = numpy.nan
 
-    return x_speed_cal
+    return speed_cal
 
+
+def speed_calibration_average(cal_fname, plot=False):
+    '''Cacluate the coefficients for the mean fit of calibrations
+
+    Notes
+    -----
+    `cal_fname` should contain three columns:
+    date,est_speed,count_average
+    2014-04-18,2.012,30
+    '''
+    import matplotlib.pyplot as plt
+    import numpy
+    import pandas
+
+    # Read calibration data
+    calibs = pandas.read_csv(cal_fname)
+
+    # Get unique dates to process fits for
+    dates = numpy.unique(calibs['date'])
+
+    # Create x data for samples and output array for y
+    n_samples = 1000
+    x = numpy.arange(n_samples)
+    fits = numpy.zeros((len(dates), n_samples), dtype=float)
+
+    # Calculate fit coefficients then store `n_samples number of samples
+    # Force intercept through zero (i.e. zero counts = zero speed)
+    # http://stackoverflow.com/a/9994484/943773
+    for i in range(len(dates)):
+        cal = calibs[calibs['date']==dates[i]]
+        xi = cal['count_average'].values[:, numpy.newaxis]
+        yi = cal['est_speed'].values
+        m, _, _, _ = numpy.linalg.lstsq(xi, yi)
+        fits[i, :] = m*x
+        # Add fit to plot if switch on
+        if plot:
+            plt.plot(x, fits[i,:], label='cal{}'.format(i))
+
+    # Calculate average of calibration samples
+    y_avg = numpy.mean(fits, axis=0)
+
+    # Add average fit to plot and show if switch on
+    if plot:
+        plt.plot(x, y_avg, label='avg')
+        plt.legend()
+        plt.show()
+
+    # Calculate fit coefficients for average samples
+    x_avg = x[:, numpy.newaxis]
+    m_avg, _, _, _ = numpy.linalg.lstsq(x_avg, y_avg)
+
+    return m_avg
