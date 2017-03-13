@@ -7,8 +7,9 @@ class Log(object):
 
     http://stackoverflow.com/a/5916874/943773
     '''
-    def __init__(self, out_path, term_on=True, write_on=True):
-        file_name = datetime.datetime.now().strftime('log_%Y-%m-%d_%H%M%S.txt')
+    def __init__(self, out_path, suffix, term_on=True, write_on=True):
+        fmt = 'log_%Y-%m-%d_%H%M%S_{}.txt'.format(suffix)
+        file_name = datetime.datetime.now().strftime(fmt)
         self.path = os.path.join(out_path, file_name)
         self.term_on = term_on
         self.write_on = write_on
