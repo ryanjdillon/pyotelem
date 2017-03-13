@@ -255,7 +255,6 @@ def create_ann_inputs(path_root, path_acc, path_glide, path_ann, path_bc, fname_
 
             try:
                 value = bc.ix[mask_bc, 'total_dens'].values[0]
-                print(value, type(value))
                 sgls.ix[mask_sgl, col_name] = value
             except:
                 raise SystemError('{} has no associated entries in the body '
