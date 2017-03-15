@@ -253,7 +253,9 @@ def recursive_input(input_label, type_class):
     '''
     import sys
 
-    msg = 'Enter {} {}: '.format(input_label, type_class)
+    type_str = str(type_class).split("'")[1]
+
+    msg = 'Enter {} (type `{}`): '.format(input_label, type_str)
 
     # Catch `Ctrl-c` keyboard interupts
     try:
@@ -264,7 +266,7 @@ def recursive_input(input_label, type_class):
             output = type_class(output)
             return output
         except:
-            print('Input must be type {}\n'.format(type_class))
+            print('Input must be of type `{}`\n'.format(type_str))
             return recursive_input(input_label, type_class)
 
     # Keyboard interrupt passed, exit recursive input
