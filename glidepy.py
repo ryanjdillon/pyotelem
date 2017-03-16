@@ -736,7 +736,7 @@ def cfg_sgl_params():
     cfg_sgl = OrderedDict()
 
     # Duration of sub-glides (8. Split sub-glides, 10. Calc glide des/asc)
-    cfg_sgl['dur'] = 5 # seconds
+    cfg_sgl['dur'] = 2 # seconds
 
     ## TODO not used
     ## Minimum duration of sub-glides, `False` excludes sublides < dur seconds
