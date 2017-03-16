@@ -274,6 +274,16 @@ def create_ann_inputs(path_root, path_acc, path_glide, path_ann, path_bc, fname_
     bc_file_path = os.path.join(path_root, path_bc, fname_bc)
     bc = pandas.read_pickle(bc_file_path)
 
+    # TODO could move this to `utils_glide`
+    # Add integer dive_phase column
+    des = sgls_all['dive_phase'] == 'descent'
+    asc = sgls_all['dive_phase'] == 'ascent'
+
+    sgls_all['dive_phase_int'] = 0
+    sgls_all.ix[des, 'dive_phase_int'] = -1
+    sgls_all.ix[asc, 'dive_phase_int'] = 1
+    sgls_all.ix[~des&~asc, 'dive_phase_int'] = 0
+
     # Extract only columns useful for ann
     sgls = sgls_all[sgl_cols]
 
@@ -281,7 +291,7 @@ def create_ann_inputs(path_root, path_acc, path_glide, path_ann, path_bc, fname_
     sgls = insert_bc_col_to_sgls(sgls, bc)
 
     # Save output
-    sgls_all.to_pickle(os.path.join(path_root, path_ann, 'sgls_all.p'))
+    sgls.to_pickle(os.path.join(path_root, path_ann, 'sgls_all.p'))
     #exps_all.to_pickle(os.path.join(path_root, path_mcmc, 'exps_all.p'))
     #dives_all.to_pickle(os.path.join(path_root, path_mcmc, 'dives_all.p'))
 

@@ -6,41 +6,31 @@ def n_hidden(n_input, n_output, n_train_samples, alpha):
     return n_hidden
 
 
-def split_data(df, feature_cols, target_col, valid_frac, n_classes):
-    '''Load and randomly sample data to `train`, `validation`, `test` sets
+def normalize_data(df, features, target, n_targets):
+    '''Normalize features and target values
 
     Args
     ----
-    df: pandas.DataFrame
-        Dataframe of data containing input features and associate target value
-        columns
-    feature_cols: list
-        List of string column names in `df` to be used as feature values
-    target_col: str
-        Name of the column in `df` to use as the target value
-    valid_frac: float
-        Fraction of dataset that should be reserved for validation/testing.
-        This slice of dataframe `df` is then split in half into the validation
-        and testing datasets
-    n_classes: int
-        Number of target classes (bins) to split `target_col` into
+    n_targets: int
+        Number of target targets (bins) to split `target` into
 
     Returns
     -------
-    train: tuple (ndarray, ndarray)
-        Tuple containing feature and target values for training
-    valid: tuple (ndarray, ndarray)
-        Tuple containing feature and target values for training validation
-    test: tuple (ndarray, ndarray)
-        Tuple containing feature and target values for testing
+    df: pandas.DataFrame
+        Data frame containing normalized features and target columns
     bins: ndarray
-        List of unique classes (bins) generated during data splitting
-    '''
-    import numpy
-    import pandas
-    from sklearn.preprocessing import normalize
+        List of unique targets (bins) generated during data splitting
 
-    # TODO add bin sizes to cfg
+    Note
+    ----
+    This should be performed before splitting the dataset into train/validation
+    sets.
+
+    Could also consider using sklearn for normalization:
+
+    from sklearn.preprocessing import normalize
+    data_norm = normalize(data_array, norm='l2', axis=1).astype('f4')
+    '''
 
     def mean_normalize(df, keys):
         return df[keys].div(df.sum(axis=0)[keys], axis=1)[keys]
@@ -50,51 +40,94 @@ def split_data(df, feature_cols, target_col, valid_frac, n_classes):
         #(df[keys] - df[keys].min())/(df[keys].max()-df[keys].min())
         return (data - data.min(axis=0))/(data.max(axis=0) - data.min(axis=0))
 
-    des = df['dive_phase'] == 'descent'
-    asc = df['dive_phase'] == 'ascent'
+    def bin_column(df, target, n_targets):
+        import numpy
 
-    df.ix[des, 'dive_phase'] = -1
-    df.ix[asc, 'dive_phase'] = 1
-    df.ix[~des & ~ asc, 'dive_phase'] = 0
+        ymin =  df[target].min()
+        ymax =  df[target].max()
+        mod = (ymax - ymin)/n_targets/4
+        bin_min = ymin - mod
+        bin_max = ymax + mod
+        bins = numpy.linspace(bin_min, bin_max, n_targets)
+
+        return numpy.digitize(df[target], bins), bins
 
     # Normalize inputs
-    df[feature_cols] = unit_normalize(df, feature_cols)
-
-    #X_train = normalize(train_array, norm='l2', axis=1).astype('f4')
-    #X_valid = normalize(valid_array, norm='l2', axis=1).astype('f4')
-    #X_test  = normalize(test_array, norm='l2', axis=1).astype('f4')
+    df[features] = unit_normalize(df, features)
 
     # Bin outputs
-    ymin =  df[target_col].min()
-    ymax =  df[target_col].max()
-    mod = (ymax - ymin)/n_classes/4
-    bin_min = ymin - mod
-    bin_max = ymax + mod
-    bins = numpy.linspace(bin_min, bin_max, n_classes)
-    df['y_binned'] = numpy.digitize(df[target_col], bins)
+    df['y_binned'], bins = bin_column(df, target, n_targets)
 
-    #y_train = (normalize(train_labels, norm='l2', axis=1)).astype('f4')
-    #y_valid = (normalize(valid_labels, norm='l2', axis=1)).astype('f4')
-    #y_test  = (normalize(test_labels, norm='l2', axis=1)).astype('f4')
+    return df, bins
 
+
+def get_split_indexes(df, valid_frac):
+    '''Get randomly selected row indices for train, validation, and test data
+    Args
+    ----
+    df: pandas.DataFrame
+        
+    features: list
+        List of string column names in `df` to be used as feature values
+    target: str
+        Name of the column in `df` to use as the target value
+    valid_frac: float
+        Fraction of dataset that should be reserved for validation/testing.
+        This slice of dataframe `df` is then split in half into the validation
+        and testing datasets
+
+    Returns
+    -------
+    ind_train: pandas.index
+        Index of values to be sliced for training
+    ind_valid: pandas.index
+        Index of values to be sliced for validation
+    ind_test: pandas.index
+        Index of values to be sliced for testing
+    '''
     # Sample into train and validation sets
-    df_train  = df.sample(frac=valid_frac)
-    ind_train = df.index.isin(df_train.index)
-    df_rest = df.loc[~ind_train]
+    ind_train = df.sample(frac=valid_frac).index
+    mask_rest = df.index.isin(ind_train)
+    df_rest = df.loc[~mask_rest]
 
     # Split valid to valid & test sets
     # http://stats.stackexchange.com/a/19051/16938
-    df_valid  = df_rest.sample(frac=0.5)
-    df_test   = df_rest[~df_rest.index.isin(df_valid.index)]
+    ind_valid = df_rest.sample(frac=0.5).index
+    ind_test  = df_rest[~df_rest.index.isin(ind_valid)].index
+
+    return ind_train, ind_valid, ind_test
+
+
+def create_datasets(df, ind_train, ind_valid, ind_test, features, target):
+    '''
+
+    Args
+    ----
+    df: pandas.DataFrame
+        
+
+    Returns
+    -------
+    train: tuple (ndarray, ndarray)
+        Tuple containing feature and target values for training
+    valid: tuple (ndarray, ndarray)
+        Tuple containing feature and target values for training validation
+    test: tuple (ndarray, ndarray)
+        Tuple containing feature and target values for testing
+    '''
+
+    df_train = df.iloc[ind_train]
+    df_valid = df.iloc[ind_valid]
+    df_test  = df.iloc[ind_test]
 
     # Extract to numpy arrays - typecast to float32
-    X_train  = (df_train[feature_cols].values).astype('f4')
+    X_train  = (df_train[features].values).astype('f4')
     train_labels = (df_train['y_binned'].values).astype('f4')
 
-    X_valid  = (df_test[feature_cols].values).astype('f4')
+    X_valid  = (df_test[features].values).astype('f4')
     valid_labels = (df_test['y_binned'].values).astype('f4')
 
-    X_test  = (df_test[feature_cols].values).astype('f4')
+    X_test  = (df_test[features].values).astype('f4')
     test_labels = (df_test['y_binned'].values).astype('f4')
 
     # Make into tuple (features, label)
@@ -103,10 +136,12 @@ def split_data(df, feature_cols, target_col, valid_frac, n_classes):
     valid = X_valid, valid_labels.astype('i4')
     test  = X_test, test_labels.astype('i4')
 
-    return train, valid, test, bins
+    return train, valid, test
 
 
-def plot_confusion_matrix(cm, classes, normalize=False, title='', cmap=None):
+
+
+def plot_confusion_matrix(cm, targets, normalize=False, title='', cmap=None):
     '''This function prints and plots the confusion matrix.
 
     Normalization can be applied by setting `normalize=True`.
@@ -120,13 +155,13 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='', cmap=None):
     plt.imshow(cm, interpolation='nearest', cmap=cmap)
     plt.title(title)
     plt.colorbar()
-    n_classes = len(classes)
-    yticks = numpy.arange(n_classes)
+    n_targets = len(targets)
+    yticks = numpy.arange(n_targets)
     xticks = yticks #- (numpy.diff(yticks)[0]/3)
-    plt.xticks(xticks, numpy.round(classes, 1), rotation=45)
-    plt.yticks(yticks, numpy.round(classes,1))
+    plt.xticks(xticks, numpy.round(targets, 1), rotation=45)
+    plt.yticks(yticks, numpy.round(targets,1))
 
-    if not cmap:
+    if cmap is None:
         cmap = plt.cm.Blues
 
     if normalize:
@@ -151,14 +186,14 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='', cmap=None):
     return None
 
 
-def get_confusion_matrices(net, train, valid, classes):
+def get_confusion_matrices(net, train, valid, targets):
     '''Print and return an sklearn confusion matrix from the input net'''
     from collections import OrderedDict
     import numpy
     import sklearn.metrics
 
-    # Filter classes to only those that were assigned to training values
-    classes = classes[sorted(list(numpy.unique(train[1])))]
+    # Filter targets to only those that were assigned to training values
+    targets = targets[sorted(list(numpy.unique(train[1])))]
 
     # Show confusion matrices on the training/validation splits.
     cms = OrderedDict()
@@ -166,7 +201,7 @@ def get_confusion_matrices(net, train, valid, classes):
         title = '{} confusion matrix'.format(label)
         label = label.lower()
         cms[label] = sklearn.metrics.confusion_matrix(y, net.predict(X))
-        plot_confusion_matrix(cms[label], classes, title=title)
+        plot_confusion_matrix(cms[label], targets, title=title)
     return cms
 
 
@@ -186,6 +221,29 @@ def get_configs(tune_params):
         configs.append(dict(zip(tune_params.keys(), l)))
 
     return configs
+
+
+def print_dict_values(cfg):
+    '''Print parameterization of input data to be analyzed'''
+
+    labels = ['glides', 'sgls', 'filter']
+
+    line = '-' * max([len(l) for l in labels]) * 4
+
+    print('\nInput data configuration:')
+
+    for label in labels:
+        pad_front = ' '*((len(line) - len(label))//2)
+        pad_back  = ' '*((len(line) - len(label))%2)
+        print('\n' + pad_front + label.upper() + pad_back)
+        print(line)
+        space = str(max([len(key) for key in list(cfg[label])]))
+        for key, value in cfg[label].items():
+            print(('{:>'+space+'}: {:04.2f}').format(key, value))
+
+        print(line)
+
+    return None
 
 
 def create_algorithm(train, valid, config, n_features, n_targets, plots=False):
@@ -297,10 +355,12 @@ def create_algorithm(train, valid, config, n_features, n_targets, plots=False):
         for attr in attrs:
             monitors[mtype][attr] = list()
 
-    print('\nTrain samples:       {:8d}'.format(len(train[0])))
-    print('Valididation samples:{:8d}\n'.format(len(valid[0])))
-    print('Hidden layers       :{:8d}\n'.format(config['hidden_layers'])
-    print('Hidden nodes/layer  :{:8d}\n'.format(config['hidden_nodes'])
+    print('')
+    print('Train samples:       {:8d}'.format(len(train[0])))
+    print('Valididation samples:{:8d}'.format(len(valid[0])))
+    print('Hidden layers:       {:8d}'.format(config['hidden_layers']))
+    print('Hidden nodes/layer:  {:8d}'.format(config['hidden_nodes']))
+    print('')
 
     kwargs = {'train':train,
               'valid':valid,
@@ -342,7 +402,7 @@ def get_best(results, key):
     return results[key][best_idx]
 
 
-def tune_net(train, valid, test, classes, configs, n_features, n_targets, plots):
+def tune_net(train, valid, test, targets, configs, n_features, n_targets, plots):
     '''Train nets with varying configurations and `validation` set
 
     The determined best configuration is then used to find the resulting
@@ -356,8 +416,8 @@ def tune_net(train, valid, test, classes, configs, n_features, n_targets, plots)
         Tuple containing feature and target values for training validation
     test: tuple (ndarray, ndarray)
         Tuple containing feature and target values for testing
-    classes: ndarray
-        List of unique classes (bins) generated during data splitting
+    targets: ndarray
+        List of unique targets (bins) generated during data splitting
     configs: dict
         Dictionary of all permutation of network configuration parameters
         defined in `cfg_ann.yaml` file
@@ -415,7 +475,7 @@ def tune_net(train, valid, test, classes, configs, n_features, n_targets, plots)
     print('Tuning test accuracy: {}'.format(test_accuracy))
 
     # Print confusion matrices for train and test
-    cms = get_confusion_matrices(best_net, train, test, classes)
+    cms = get_confusion_matrices(best_net, train, test, targets)
 
     return results_tune, test_accuracy, cms
 
@@ -440,7 +500,7 @@ def truncate_data(data, frac):
     return subset_frac
 
 
-def test_dataset_size(best_config, train, valid, test, classes, n_features, n_targets,
+def test_dataset_size(best_config, train, valid, test, targets, n_features, n_targets,
         subset_fractions):
     '''Train nets with best configuration and varying dataset sizes
 
@@ -454,8 +514,8 @@ def test_dataset_size(best_config, train, valid, test, classes, n_features, n_ta
         Tuple containing feature and target values for training validation
     test: tuple (ndarray, ndarray)
         Tuple containing feature and target values for testing
-    classes: ndarray
-        List of unique classes (bins) generated during data splitting
+    targets: ndarray
+        List of unique targets (bins) generated during data splitting
     n_features: int
         Number of features (inputs) for configuring input layer of network
     n_targets: int
@@ -514,7 +574,7 @@ def test_dataset_size(best_config, train, valid, test, classes, n_features, n_ta
     test_accuracy = best_net.score(test[0], test[1])
 
     # Print confusion matrices for train and test
-    cms = get_confusion_matrices(best_net, train, test, classes)
+    cms = get_confusion_matrices(best_net, train, test, targets)
 
     return results_dataset, test_accuracy, cms
 
@@ -556,10 +616,11 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
     # TODO add starttime, finishtime, git/versions
 
     from collections import OrderedDict
-    import datetime
     import climate
+    import datetime
     import numpy
     import os
+    import pickle
     import theano
 
     import utils_data
@@ -591,35 +652,56 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
     fname_bc        = 'coexist_experiments.p'
     fname_sgls      = 'data_sgls.p'
     fname_mask_sgls = 'mask_sgls_filt.p'
+    fname_ann_sgls  = 'sgls_all.p'
+    fname_ind_train = 'ind_train.p'
+    fname_ind_valid = 'ind_valid.p'
+    fname_ind_test  = 'ind_test.p'
+
+    # Print input data configuration
+    print_dict_values(cfg['data'])
 
 
     # Compile, split, and normalize data
     #---------------------------------------------------------------------------
-    sgl_cols = cfg['data']['sgl_cols'] + cfg['net_all']['feature_cols']
+    sgl_cols = cfg['data']['sgl_cols'] + cfg['net_all']['features']
 
     # Compile output from glides into single input dataframe
-    exps, sgls, dives = utils_data.create_ann_inputs(path_root,
-                                                     path_acc,
-                                                     glide_path,
-                                                     path_ann,
-                                                     path_bc,
-                                                     fname_bc,
-                                                     fname_sgls,
-                                                     fname_mask_sgls,
-                                                     sgl_cols,
-                                                     manual_selection=True)
+    _, sgls, _ = utils_data.create_ann_inputs(path_root,
+                                              path_acc,
+                                              glide_path,
+                                              path_ann,
+                                              path_bc,
+                                              fname_bc,
+                                              fname_sgls,
+                                              fname_mask_sgls,
+                                              sgl_cols,
+                                              manual_selection=True)
 
-    # TODO review outcome of this
-    # TODO add num. ascent/descent glides to cfg
+    # Drop rows missing data
     sgls = sgls.dropna()
 
     print('\nSplit and normalize input/output data')
-    # Split data with random selection for validation
-    train, valid, test, bins = split_data(sgls,
-                                          cfg['net_all']['feature_cols'],
-                                          cfg['net_all']['target_col'],
-                                          cfg['net_all']['valid_frac'],
-                                          cfg['net_all']['n_classes'])
+    features   = cfg['net_all']['features']
+    target     = cfg['net_all']['target']
+    n_targets  = cfg['net_all']['n_targets']
+    valid_frac = cfg['net_all']['valid_frac']
+
+    # Normalize input (features) and output (target)
+    sgls, bins = normalize_data(sgls, features, target, n_targets)
+    bins_list = [float(b) for b in bins]
+
+    # Get indices of train, validation and test datasets
+    ind_train, ind_valid, ind_test = get_split_indexes(sgls, valid_frac)
+
+    # Split dataframes into train, validation and test  (features, targets) tuples
+    train, valid, test = create_datasets(sgls, ind_train, ind_valid, ind_test,
+                                         features, target)
+
+    # Save information on input data to config
+    cfg['net_all']['n_train'] = len(train[0])
+    cfg['net_all']['n_valid'] = len(valid[0])
+    cfg['net_all']['n_test'] = len(test[0])
+    cfg['net_all']['targets'] = bins_list
 
 
     # Tuning - find optimal network architecture
@@ -630,12 +712,12 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
     configs = get_configs(cfg['net_tuning'])
 
     # Cycle through configurations storing configuration, net in `results_tune`
-    n_features = len(cfg['net_all']['feature_cols'])
-    n_targets = cfg['net_all']['n_classes']
+    n_features = len(cfg['net_all']['features'])
+    n_targets = cfg['net_all']['n_targets']
 
     print('\nNumber of features: {}'.format(n_features))
     print('Number of targets: {}\n'.format(n_targets))
-    #n_targets = 1
+
     results_tune, tune_accuracy, tune_cms = tune_net(train,
                                                      valid,
                                                      test,
@@ -671,12 +753,24 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
 
     # Save results and configuration to output directory
     #---------------------------------------------------------------------------
+    # Create output directory if it does not exist
     out_path = os.path.join(path_root, path_ann, cfg['output']['results_path'])
     os.makedirs(out_path, exist_ok=True)
 
+    # Save config as a `*.yaml` file to the output directory
     yaml_tools.write_yaml(cfg, os.path.join(out_path, path_cfg_ann))
+
+    # Save output data to analysis output directory
     results_tune.to_pickle(os.path.join(out_path, cfg['output']['tune_fname']))
     results_dataset.to_pickle(os.path.join(out_path, cfg['output']['dataset_size_fname']))
+
+    # Save the generated input data to the analysis output directory
+    sgls.to_pickle(os.path.join(out_path, fname_ann_sgls))
+
+    # Save indices for creating the same train, validation, test datasets
+    pickle.dump(train, open(os.path.join(out_path, fname_ind_train), 'wb'))
+    pickle.dump(valid, open(os.path.join(out_path, fname_ind_valid), 'wb'))
+    pickle.dump(test,  open(os.path.join(out_path, fname_ind_test), 'wb'))
 
     return cfg, (train, valid, test, bins), (results_tune, results_dataset,
                                              tune_cms, data_cms)

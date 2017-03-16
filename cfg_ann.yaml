@@ -15,7 +15,7 @@ data:
       #min_depth: 0.4
       #tmax: 16.0
     sgls:
-      dur: 5
+      dur: 2
     filter:
       pitch_thresh: 30
       #min_depth: 0.4
@@ -26,7 +26,7 @@ data:
 
 # Data and network config common to all structures
 net_all:
-    feature_cols:
+    features:
         #- 'R2_speed_vs_time'
         #- 'SD_pitch'
         #- 'SE_speed_vs_time'##
@@ -35,7 +35,7 @@ net_all:
         #- 'dive_id'
         #- 'dive_max_depth'
         #- 'dive_min_depth'
-        - 'dive_phase'##
+        - 'dive_phase_int'##
         #- 'duration'
         #- 'exp_id'
         #- 'heading_concentration'
@@ -55,9 +55,9 @@ net_all:
         #- 'stop_idx'
         - 'total_depth_change'
         - 'total_speed_change'##
-    target_col: 'total_dens'
-    valid_frac: 0.7
-    n_classes:  10
+    target: 'total_dens'
+    valid_frac: 0.6
+    n_targets:  10
 
 # Network tuning parameters, all permutations of these will be trained/validated
 net_tuning:
