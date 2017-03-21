@@ -56,8 +56,9 @@ if __name__ == '__main__':
     morpho_path = paths['bodycondition']
 
     fname_exp_csv    = 'coexist_experiments.csv'
-    fname_exp_p      = 'coexist_experiments.p'
     fname_morpho_csv = 'coexist_tritium-morphometrics.csv'
+
+    fname_exp_p      = 'coexist_experiments.p'
     fname_morpho_p   = 'coexist_morphometrics.p'
 
     exp_file = os.path.join(root_path, morpho_path, fname_exp_csv)
