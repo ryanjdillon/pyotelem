@@ -53,7 +53,7 @@ def filter_sgls(n_samples, exp_ind, sgls, max_pitch, min_depth,
 def get_subdir(path, cfg):
     import os
 
-    import utils
+    from bodycondition import utils
 
     def match_subdir(path, cfg):
         import numpy
