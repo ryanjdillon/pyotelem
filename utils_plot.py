@@ -661,29 +661,38 @@ def plot_sgls(depths, data_sgl_mask, sgls, sgl_mask, pitch_lf, roll_lf, heading_
     return None
 
 
-def sgl_density(sgls, depths, mask_des, mask_asc):
+def sgl_density(sgls, max_depth=20, textstr='', fname=False):
     '''Plot density of subglides over time for whole exp, des, and asc'''
     import seaborn as sns
     import matplotlib.pyplot as plt
+    import numpy
 
 
     sns.set(style="white", color_codes=True)
 
-    mask_all = numpy.ones(len(data), dtype=bool)
-
-    jointplots = list()
-    #fig, (ax1, ax2, ax3) = plt.subplots(1, 3, sharex=True, sharey=True)
     fig = plt.figure()
-    for mask in [mask_all, mask_des, mask_asc]:
-        #sgl_x = time, mid between start and finish
-        #sgl_y = depth, calc avg over sgl time
-        g = sns.jointplot(x=data[mask].index, y=data[mask]['depth'], kind='hex')
-        jointplots.append(g)
 
-    for g in jointplots:
-        for ax in g.fig.axes:
-            fig._axstack.add(fig._make_key(ax), ax)
+    # time, mid between start and finish
+    sgl_x = sgls['start_idx'] + ((sgls['stop_idx']-sgls['start_idx'])/2)
 
-    plt.show()
+    # depth, calc avg over sgl time
+    sgl_y = sgls['mean_depth']
+
+    g = sns.jointplot(x=sgl_x, y=sgl_y, kind='hex', stat_func=None)
+
+    g.fig.axes[0].set_ylim(0, max_depth)
+    g.fig.axes[0].invert_yaxis()
+    g.set_axis_labels(xlabel='Time', ylabel='Depth (m)')
+
+    # Add text annotation top left if `textstr` passed
+    if textstr:
+        props = dict(boxstyle='round', facecolor='grey', alpha=0.1)
+        g.fig.axes[0].text(0.05, 0.20, textstr, transform=g.fig.axes[0].transAxes,
+                           fontsize=14, verticalalignment='top', bbox=props)
+
+    if fname:
+        g.savefig(filename=fname)#, dpi=300)
+    else:
+        plt.show()
 
     return None
