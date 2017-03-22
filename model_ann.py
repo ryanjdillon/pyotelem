@@ -333,7 +333,7 @@ def create_algorithm(train, valid, config, n_features, n_targets, plots=False):
             ax.plot(monitors['train'][attr], label='Training')
             ax.plot(monitors['valid'][attr], label='Validation')
             if legend_on:
-                ax.legend(loc='upper left')
+                ax.legend(loc='upper right')
                 legend_on = False
         plt.show()
 
@@ -377,17 +377,17 @@ def create_algorithm(train, valid, config, n_features, n_targets, plots=False):
               'weight_l2':config['weight_l2']}
 
     # Run with monitors if `plots` flag set to true
-    if plots == True:
-        for t_monitors, v_monitors in net.itertrain(**kwargs):
-            for key in attrs:
-                monitors['train'][key].append(t_monitors[key])
-                monitors['valid'][key].append(v_monitors[key])
+    for t_monitors, v_monitors in net.itertrain(**kwargs):
+        for key in attrs:
+            monitors['train'][key].append(t_monitors[key])
+            monitors['valid'][key].append(v_monitors[key])
 
+    if plots == True:
         plot_monitors(attrs, monitors['train'], monitors['valid'])
 
     # Run with `train` wrapper of `itertrain`
-    else:
-        net.train(**kwargs)
+    #else:
+    #    net.train(**kwargs)
 
     # Classify features against label/target value to get accuracy
     # where `valid` is a tuple with validation (features, label)
@@ -398,7 +398,8 @@ def create_algorithm(train, valid, config, n_features, n_targets, plots=False):
 
 def get_best(results, key):
     '''Return results column 'key''s value from model with best accuracy'''
-    best_idx = results['accuracy'].idxmax()
+    mask_acc = results['accuracy'] == results['accuracy'].max()
+    best_idx = results['train_time'][mask_acc].idxmin()
     return results[key][best_idx]
 
 
@@ -465,6 +466,7 @@ def tune_net(train, valid, test, targets, configs, n_features, n_targets, plots)
         results_tune['net'][i]        = net
         results_tune['accuracy'][i]   = accuracy
         results_tune['train_time'][i] = t1 - t0
+        results_tune['monitors'][i]   = monitors
 
     # Get neural net with best accuracy
     best_net = get_best(results_tune, 'net')
@@ -495,9 +497,18 @@ def truncate_data(data, frac):
     '''
 
     n = len(data[0])
-    subset_frac = (data[0][:round(n*frac)], data[1][:round(n*frac)])
+    subset_frac = (data[0][:int(round(n*frac))], data[1][:int(round(n*frac))])
 
     return subset_frac
+
+
+def get_attr(results, group, attr):
+    import numpy
+
+    n_results = len(results)
+    attrs = [results['monitors'][i][group][attr][-1] for i in range(n_results)]
+
+    return numpy.asarray(attrs)
 
 
 def test_dataset_size(best_config, train, valid, test, targets, n_features, n_targets,
@@ -542,7 +553,10 @@ def test_dataset_size(best_config, train, valid, test, targets, n_features, n_ta
     import time
 
     # Make array for storing results
-    data_cols = ['config', 'net', 'accuracy', 'subset_frac', 'train_time']
+    data_cols = ['config', 'net', 'accuracy', 'subset_frac', 'train_time',
+                 'monitors', 'n_train', 'n_valid']
+
+    subset_fractions = (numpy.arange(0,1,0.03))[1:]
     results_dataset = pandas.DataFrame(index=range(len(subset_fractions)),
                                     columns=data_cols, dtype=object)
 
@@ -556,7 +570,7 @@ def test_dataset_size(best_config, train, valid, test, targets, n_features, n_ta
 
         t0 = time.time()
 
-        net, accuracy, monitors = create_algorithm(train, valid, best_config,
+        net, accuracy, monitors = create_algorithm(train_frac, valid_frac, best_config,
                                                    n_features, n_targets)
         t1 = time.time()
 
@@ -565,6 +579,9 @@ def test_dataset_size(best_config, train, valid, test, targets, n_features, n_ta
         results_dataset['accuracy'][i]    = accuracy
         results_dataset['subset_frac'][i] = subset_fractions[i]
         results_dataset['train_time'][i]  = t1 - t0
+        results_dataset['monitors'][i]    = monitors
+        results_dataset['n_train'][i]     = len(train_frac[0])
+        results_dataset['n_valid'][i]     = len(valid_frac[0])
 
     # Get neural net with best accuracy
     best_net = get_best(results_dataset, 'net')
