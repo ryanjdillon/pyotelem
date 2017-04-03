@@ -36,7 +36,7 @@ sgls: pandas.DataFrame
   Contains subglide summary information of `sensors` data
 glide_ratio: pandas.DataFrame
   Contains glide ratio summary information of `sensors` data
-tmax: int
+t_max: int
     maximum duration allowable for a fluke stroke in seconds, it can be set as
     1/`stroke_frq`
 J:
@@ -46,7 +46,8 @@ J:
 
 # TODO CLARIFY `stroke_frq` vs `fluke rate` low pass vs high-pass signals
 
-# TODO look into tmax / t_max yaml
+# TODO add experiment info: # dives, # subglides asc/des in cfg_filter.yaml
+# TODO look into t_max / t_max yaml
 # TODO use name convention in rest of repo: fname_, path_, etc.
 # TODO copy yaml_tools to bodycondition, remove external import
 # TODO GL and dives ind saved in masks? have routine that calcs dive info
@@ -184,7 +185,7 @@ def lleo_glide_analysis(path_root, path_acc, path_glide, path_exp,
     cfg_filt  = cfg_filt_params()
 
     # Output paths
-    ignore = ['nperseg', 'peak_thresh', 'alpha', 'min_depth', 'tmax, t_max']
+    ignore = ['nperseg', 'peak_thresh', 'alpha', 'min_depth', 't_max, t_max']
     out_data  = os.path.join(path_root, path_acc, path_exp)
     os.makedirs(out_data, exist_ok=True)
 
@@ -415,7 +416,7 @@ def process_sensor_data(log, path_exp, cfg_glide, file_cfg_exp, sensors, fs_a,
 
     # NOTE change `auto_select` & `stroke_ratio` here to modify selectio method
     # TODO should perform initial lp/hp filter, then `stroke_f` comes from high-pass
-    # should be OK other than tmax, these values are too high
+    # should be OK other than t_max, these values are too high
     if debug is False:
         cutoff_frq, stroke_frq, stroke_ratio = utils_glides.get_stroke_freq(Ax_g,
                                                        Az_g,
@@ -430,7 +431,7 @@ def process_sensor_data(log, path_exp, cfg_glide, file_cfg_exp, sensors, fs_a,
         cfg_glide['stroke_ratio'] = stroke_ratio
 
         # Calculate maximum duration of glides from stroke frequency
-        cfg_glide['tmax']  = 1 /cfg_glide['stroke_frq']  # seconds
+        cfg_glide['t_max']  = 1 /cfg_glide['stroke_frq']  # seconds
     else:
         cutoff_frq = 0.3
         cfg_glide['cutoff_frq'] = cutoff_frq
@@ -549,7 +550,7 @@ def process_sensor_data(log, path_exp, cfg_glide, file_cfg_exp, sensors, fs_a,
     # * from the body rotations (pry) using the magnetometer method
     # * from the dorso-ventral axis of the HPF acceleration signal.
 
-    # For both methods, tmax and J need to be determined.
+    # For both methods, t_max and J need to be determined.
 
     # Choose a value for J based on a plot showing distribution of signals:
     #   hpf-x, when detecting glides in the next step use Ahf_Anlf() with axis=0
@@ -611,7 +612,7 @@ def process_glides(log, cfg_glide, sensors, fs_a, dives, masks, Mw=None, plots=T
 
     # TODO
     # check glides duration and positive and negative zero crossings based
-    # on selected J and tmax#
+    # on selected J and t_max#
 
 
     # 10 Calculate glide ratio TODO keep?
