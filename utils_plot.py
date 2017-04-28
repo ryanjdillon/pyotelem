@@ -1,11 +1,13 @@
 import matplotlib.pyplot as plt
 import seaborn
+import string
 
 # Use specified style (e.g. 'ggplot')
 plt.style.use('seaborn-whitegrid')
 
 # Use specified color palette
 colors = seaborn.color_palette()
+abc = string.ascii_uppercase
 
 # Global axis properties
 linewidth = 0.5
@@ -49,6 +51,34 @@ def compare_sensors(param, singles=False, cfg_paths_fname='./cfg_paths.yaml'):
 
 # Utils
 #------------------------------------------------------------------------------
+
+def add_alpha_labels(axes, xpos=0.03, ypos=0.95, color=None, boxstyle='square',
+        facecolor='white', edgecolor='white', alpha=1.0):
+    '''Add sequential alphbet labels to subplot axes
+
+    e.g. A., B., C., etc.
+    '''
+    import seaborn
+    import string
+
+    colors = seaborn.color_palette()
+    abc = string.ascii_uppercase
+
+    for c, (label, ax) in enumerate(zip(abc[:len(axes)], axes)):
+        if color is None:
+            color = colors[c]
+        kwargs = dict(color=color,
+                      fontweight='bold',)
+
+        bbox = dict(boxstyle=boxstyle,
+                     facecolor=facecolor,
+                     edgecolor=edgecolor,
+                     alpha=1.0)
+
+        ax.text(0.03, 0.95, '{}.'.format(label), transform=ax.transAxes,
+                fontsize=14, verticalalignment='top', bbox=bbox, **kwargs)
+    return axes
+
 
 def merge_limits(axes, xlim=True, ylim=True):
     '''Set maximum and minimum limits from list of axis objects to each axis
@@ -148,21 +178,38 @@ def plot_lf_hf(x, xlf, xhf, title=''):
 
     plt.title(title)
 
-    ax1.title.set_text('All freqencies')
+    #ax1.title.set_text('All freqencies')
     ax1.plot(range(len(x)), x, color=colors[0], linewidth=linewidth,
              label='original')
     ax1.legend(loc='upper right')
 
-    ax2.title.set_text('Low-pass filtered')
+    #ax2.title.set_text('Low-pass filtered')
     ax2.plot(range(len(xlf)), xlf, color=colors[1], linewidth=linewidth,
              label='low-pass')
     ax2.legend(loc='upper right')
+    ax2.set_ylabel('Frequency (Hz)')
 
-    ax3.title.set_text('High-pass filtered')
+    #ax3.title.set_text('High-pass filtered')
     ax3.plot(range(len(xhf)), xhf, color=colors[2], linewidth=linewidth,
              label='high-pass')
     ax3.legend(loc='upper right')
 
+
+    ax1, ax2, ax3 = add_alpha_labels([ax1, ax2, ax3])
+
+    # TODO break into util function
+    # Convert sample # ticks to times
+    total_seconds = ax3.get_xticks()/16
+
+    # with timedelta: (stop - start).total_seconds()
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    strtime = lambda minutes, seconds: '{:.0f}:{:02.0f}'.format(minutes, seconds)
+    labels = list(map(strtime, minutes, seconds))
+
+    ax3.set_xticklabels(labels)
+
+    plt.xlabel('Sample time (minute:second)')
     plt.show()
 
     return None
@@ -667,6 +714,14 @@ def sgl_density(sgls, max_depth=20, textstr='', fname=False):
     import matplotlib.pyplot as plt
     import numpy
 
+    # TODO add A/ B, bottom left
+    # TODO move textbox bottom right
+    # TODO set limits for density the same
+    # TODO Update xaxis, units time elapsed
+    # TODO save as svg
+
+    # Make jointplots as subplots
+    # http://stackoverflow.com/a/35044845/943773
 
     sns.set(style="white", color_codes=True)
 
@@ -683,6 +738,11 @@ def sgl_density(sgls, max_depth=20, textstr='', fname=False):
     g.fig.axes[0].set_ylim(0, max_depth)
     g.fig.axes[0].invert_yaxis()
     g.set_axis_labels(xlabel='Time', ylabel='Depth (m)')
+
+    ## TODO add colorbar
+    ## http://stackoverflow.com/a/29909033/943773
+    #cax = g.fig.add_axes([1, 0.35, 0.01, 0.2])
+    #plt.colorbar(cax=cax)
 
     # Add text annotation top left if `textstr` passed
     if textstr:
