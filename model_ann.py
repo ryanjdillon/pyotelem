@@ -80,11 +80,6 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
     # Print input data configuration
     print_dict_values(cfg['data'])
 
-    # Create output directory if it does not exist
-    out_path = os.path.join(path_root, path_ann, cfg['output']['results_path'])
-    os.makedirs(out_path, exist_ok=True)
-
-
     # Compile, split, and normalize data
     #---------------------------------------------------------------------------
     sgl_cols = cfg['data']['sgl_cols'] + cfg['net_all']['features']
@@ -100,6 +95,10 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
                                               fname_mask_sgls,
                                               sgl_cols,
                                               manual_selection=True)
+
+    # Create output directory if it does not exist
+    out_path = os.path.join(path_root, path_ann, cfg['output']['results_path'])
+    os.makedirs(out_path, exist_ok=True)
 
     # Save sgls data to output directory
     sgls.to_pickle(os.path.join(out_path, fname_ann_sgls))
