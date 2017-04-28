@@ -361,15 +361,6 @@ def plot_confusion_matrix(cm, targets, normalize=False, title='', cmap=None,
     import matplotlib.pyplot as plt
     import numpy
 
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    plt.title(title)
-    plt.colorbar()
-    n_targets = len(targets)
-    yticks = numpy.arange(n_targets)
-    xticks = yticks #- (numpy.diff(yticks)[0]/3)
-    plt.xticks(xticks, numpy.round(targets, 1), rotation=xlabel_rotation)
-    plt.yticks(yticks, numpy.round(targets,1))
-
     if cmap is None:
         cmap = plt.cm.PuBuGn
 
@@ -379,6 +370,15 @@ def plot_confusion_matrix(cm, targets, normalize=False, title='', cmap=None,
     else:
         print('\n{}, without normalization'.format(title))
 
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar(label='Number of predictions')
+    n_targets = len(targets)
+    yticks = numpy.arange(n_targets)
+    xticks = yticks #- (numpy.diff(yticks)[0]/3)
+    plt.xticks(xticks, numpy.round(targets, 1), rotation=xlabel_rotation)
+    plt.yticks(yticks, numpy.round(targets,1))
+
     print(cm)
 
     thresh = cm.max() / 2.
@@ -387,9 +387,9 @@ def plot_confusion_matrix(cm, targets, normalize=False, title='', cmap=None,
                  horizontalalignment='center',
                  color='white' if cm[i, j] > thresh else 'black')
 
+    plt.ylabel('Observed bin')
+    plt.xlabel('Predicted bin')
     plt.tight_layout()
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
     plt.show()
 
     return None
