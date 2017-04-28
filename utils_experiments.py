@@ -20,7 +20,7 @@ def add_morpho_to_experiments(exp_file, morpho_file):
     morpho['density_kgm3'] = perc_comps['density']*1000
 
     # List of columns to add to experiments from tritium-morpho data
-    cols = ['mass_kg', 'length', 'girth' 'water_l', 'water_perc', 'fat_kg',
+    cols = ['mass_kg', 'length_cm', 'girth_cm','water_l', 'water_perc', 'fat_kg',
             'fat_perc', 'protein_kg', 'protein_perc', 'density_kgm3']
 
     # Create new columns in experiment dataframe
@@ -31,7 +31,8 @@ def add_morpho_to_experiments(exp_file, morpho_file):
     # Add data from tritium-morpho dataframe to experiments dataframe
     for i in range(len(exps)):
         idx = int(exps['tritium_id'].iloc[i])
-        exps.loc[i, cols] = morpho.loc[idx, cols]
+        midx = numpy.where(morpho['id'] == idx)[0][0]
+        exps.loc[i, cols] = morpho.ix[midx,cols]
 
         # Cacluate total density with modification, buoyant forces
         total_dens = utils_morphometrics.apply_mods(exps['mass_kg'][i],
