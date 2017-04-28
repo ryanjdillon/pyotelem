@@ -80,6 +80,10 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
     # Print input data configuration
     print_dict_values(cfg['data'])
 
+    # Create output directory if it does not exist
+    out_path = os.path.join(path_root, path_ann, cfg['output']['results_path'])
+    os.makedirs(out_path, exist_ok=True)
+
 
     # Compile, split, and normalize data
     #---------------------------------------------------------------------------
@@ -97,6 +101,9 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
                                               sgl_cols,
                                               manual_selection=True)
 
+    # Save sgls data to output directory
+    sgls.to_pickle(os.path.join(out_path, fname_ann_sgls))
+
     # Drop rows missing data
     sgls = sgls.dropna()
 
@@ -107,20 +114,20 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
     valid_frac = cfg['net_all']['valid_frac']
 
     # Normalize input (features) and output (target)
-    sgls, bins = normalize_data(sgls, features, target, n_targets)
+    nsgls, bins = normalize_data(sgls, features, target, n_targets)
     bins_list = [float(b) for b in bins]
 
     # Get indices of train, validation and test datasets
-    ind_train, ind_valid, ind_test = get_split_indexes(sgls, valid_frac)
+    ind_train, ind_valid, ind_test = get_split_indexes(nsgls, valid_frac)
 
     # Split dataframes into train, validation and test  (features, targets) tuples
-    train, valid, test = create_datasets(sgls, ind_train, ind_valid, ind_test,
+    train, valid, test = create_datasets(nsgls, ind_train, ind_valid, ind_test,
                                          features, target)
 
     # Save information on input data to config
     cfg['net_all']['n_train'] = len(train[0])
     cfg['net_all']['n_valid'] = len(valid[0])
-    cfg['net_all']['n_test'] = len(test[0])
+    cfg['net_all']['n_test']  = len(test[0])
     cfg['net_all']['targets'] = bins_list
 
 
@@ -173,9 +180,6 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
 
     # Save results and configuration to output directory
     #---------------------------------------------------------------------------
-    # Create output directory if it does not exist
-    out_path = os.path.join(path_root, path_ann, cfg['output']['results_path'])
-    os.makedirs(out_path, exist_ok=True)
 
     # Save config as a `*.yaml` file to the output directory
     yaml_tools.write_yaml(cfg, os.path.join(out_path, path_cfg_ann))
@@ -184,10 +188,7 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
     results_tune.to_pickle(os.path.join(out_path, cfg['output']['tune_fname']))
     results_dataset.to_pickle(os.path.join(out_path, cfg['output']['dataset_size_fname']))
 
-    # Save the generated input data to the analysis output directory
-    sgls.to_pickle(os.path.join(out_path, fname_ann_sgls))
-
-    # Save indices for creating the same train, validation, test datasets
+    # Save train, validation, test datasets
     pickle.dump(train, open(os.path.join(out_path, fname_ind_train), 'wb'))
     pickle.dump(valid, open(os.path.join(out_path, fname_ind_valid), 'wb'))
     pickle.dump(test,  open(os.path.join(out_path, fname_ind_test), 'wb'))
