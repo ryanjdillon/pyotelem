@@ -505,6 +505,8 @@ def calc_glide_des_asc(depths, pitch_lf, roll_lf, heading_lf, swim_speed,
         #    sp = 0
         #elif sumphase > 0:
         #    sp = 1
+        # TODO this does not take into account the positive depths, flipping
+        # descents to ascents
         sgl_signs = numpy.sign(sgl_depth_diffs)
         if all(sgl_signs == -1):
             sgls['dive_phase'][i] = 'descent'
