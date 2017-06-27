@@ -1,4 +1,73 @@
 
+def simulate_density(mass_kg=40, bd_start=1000, n_bd=101, block_start=1,
+        n_blocks=8):
+    '''Produce a range of body densities given an initial mass and density'''
+    import numpy
+    import pandas
+
+    # Range of body densities to test
+    types = ['weight', 'float']
+    bd_range = bd_start+numpy.arange(0, n_bd)
+    bodydensities = numpy.tile(numpy.repeat(bd_range, n_blocks), len(types))
+
+    block_range = block_start+numpy.arange(0, n_blocks)
+    blocks = numpy.tile(numpy.tile(block_range, n_bd), len(types))
+
+    types = numpy.repeat(types, n_bd*n_blocks)
+
+    columns = ['type', 'dens_kgm3', 'n_blocks', 'rho_mod', 'delta_rho']
+    df = pandas.DataFrame(index=range(len(bodydensities)), columns=columns)
+
+    for i in range(len(df)):
+        print(i, df.index[i])
+        df.loc[df.index[i], 'type'] = types[i]
+        df.loc[df.index[i], 'dens_kgm3'] = bodydensities[i]
+        df.loc[df.index[i], 'n_blocks'] = blocks[i]
+        #seal_vol = calc_seal_volume(mass_kg, bodydensities[i])
+        #rho_mod = calc_mod_density(mass_kg, seal_vol, blocks[i], t)
+        rho_mod = calc_mod_density_kagari(mass_kg, bodydensities[i], blocks[i], t)
+        df.loc[df.index[i], 'rho_mod'] = rho_mod
+        df.loc[df.index[i], 'delta_ro'] = rho_mod - bodydensities[i]
+
+    return df
+
+
+def calc_mod_density(mass_kg, seal_vol, n_mods, mod_type):
+    '''Cacluate the total density of the seal with modification blocks'''
+    # Modifier block attributes
+    mod_vol  = 0.15 * 0.04 * 0.03 # Length x Width x Height (m^3)
+    mod_dens = {'weight': 3556.0, 'float': 744.0}
+    mod_mass = {'weight': 0.640,  'float': 0.134}
+
+    # Calculate combined density
+    total_mass = (mass_kg + (n_mods * mod_mass[mod_type]))
+    total_vol  = (seal_vol + (n_mods * mod_vol))
+    total_dens = total_mass / total_vol
+
+    return total_dens
+
+
+def calc_mod_density_kagari(mass_kg, dens_kgm3, n_blocks, mod_type):
+    def mod_weight(mass_kg, dens_kgm3, n_weights):
+        total_dens = ((mass_kg*1000 + 168*4 + 260*n_weights) /
+                      (mass_kg*1000 / (dens_kgm3/1000) + 168*4) * 1000)
+        return total_dens
+
+    def mod_float(mass_kg, dens_kgm3, n_weights):
+        total_dens = ((mass_kg*1000 + 168*(4-n_floats) + 35*n_floats) /
+                      (mass_kg*1000 / (dens_kgm3/1000) + 168*4) * 1000)
+        return total_dens
+
+    if mod_type == 'weight':
+        total_dens = mod_weight(mass_kg, dens_kgm3, n_blocks)
+    elif mod_type == 'float':
+        total_dens = mod_float(mass_kg, dens_kgm3, n_blocks)
+    else:
+        raise ValueError('mod_type must be "weight" or "float"')
+
+    return total_dens
+
+
 def apply_mods(mass_kg, dens_kgm3, mod_type, n_mods, length=None, girth=None,
         dsw_kgm3=1028.0):
     '''Estimate change in buoyancy with floats or weights
@@ -31,21 +100,8 @@ def apply_mods(mass_kg, dens_kgm3, mod_type, n_mods, length=None, girth=None,
     # Only update density if 'weight' or 'float' mod_type
     if (mod_type == 'weight') or (mod_type == 'float'):
 
-        # Cacluate seal volume
-        if (length is not None) and (girth is not None):
-            _, seal_vol = surf_vol(length, girth)
-        else:
-            seal_vol = mass_kg / dens_kgm3
-
-        # Modifier block attributes
-        mod_vol  = 0.15 * 0.04 * 0.03 # Length x Width x Height (m^3)
-        mod_dens = {'weight': 3556.0, 'float': 744.0}
-        mod_mass = {'weight': 0.640,  'float': 0.134}
-
-        # Calculate combined density
-        total_mass = (mass_kg + (n_mods * mod_mass[mod_type]))
-        total_vol  = (seal_vol + (n_mods * mod_vol))
-        total_dens = total_mass / total_vol
+        seal_vol = calc_seal_volume(mass_kg, dens_kgm3)
+        total_dens = calc_mod_density(mass_kg, seal_vol, n_mods, mod_type)
 
     # Density of seal unchanged if not 'weight' or 'float' (i.e. 'control', 'neutral')
     else:
@@ -81,7 +137,26 @@ def calc_CdAm(farea, mass):
 
 
 def bodycomp(mass, tbw, method='reilly', simulate=False, n_rand=1000):
-    '''Create dataframe with derived body composition values'''
+    '''Create dataframe with derived body composition values
+
+    Args
+    ----
+    mass: ndarray
+        dry weight of the seal (kg)
+    tbw: ndarray
+        wet weight of the seal (kg)
+    method: str
+        name of method used to derive composition values
+    simulate: bool
+        switch for generating values with random noise
+    n_rand: int
+        number of density values to simulate
+
+    Returns
+    -------
+    bc: pandas.Dataframe
+        dataframe containing columns for each body composition value
+    '''
     import numpy
     import pandas
 
@@ -123,7 +198,18 @@ def bodycomp(mass, tbw, method='reilly', simulate=False, n_rand=1000):
 
 
 def perc_bc_from_lipid(p_lipid):
-    '''Calculate body composition component percentages based on % lipid'''
+    '''Calculate body composition component percentages based on % lipid
+
+    Args
+    ----
+    p_lipid: ndarray
+        array of percent lipid values from which to calculate body composition
+
+    Returns
+    -------
+    perc_comps: pandas.Dataframe
+        dataframe of percent composition values from percent lipids
+    '''
     import pandas
 
     p_comps = pandas.DataFrame(index=range(len(p_lipid)))
@@ -158,7 +244,15 @@ def lip2dens(p_lipid, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994, a_den
 
 
 def dens2lip(seal_dens, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994, a_dens=2.3):
-    '''density to lipid'''
+    '''density to lipid
+
+    Args
+    ----
+    seal_dens: ndarray
+        An array of seal densities (g/cm^3), must be broadcastable array. The
+        calculations only yield valid percents with densities between
+        0.888-1.123 wit other parameters left as defaults.
+    '''
 
     ad_numerat =  -3.2248 * a_dens
     pd_numerat = -25.2786 * prot_dens
@@ -172,9 +266,9 @@ def dens2lip(seal_dens, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994, a_d
               (lipid_dens + ad_denom + pd_denom + wd_denom)
 
     p_all = lip2dens(p_lipid)
-    p_all = p_all[['perc_water', 'perc_protein', 'perc_ash']]
+    p_all = p_all[['perc_water', 'perc_protien', 'perc_ash']]
 
-    p_call['density'] = seal_density
+    p_all['density'] = seal_dens
     p_all['perc_lipid'] = p_lipid
 
     return p_all
@@ -234,3 +328,13 @@ def surf_vol(length, girth):
     vol  = (((4/3) * numpy.pi)*(ar**2) * cr)
 
     return surf, vol
+
+
+def calc_seal_volume(mass_kg, dens_kgm3, length=None, girth=None):
+    '''Cacluate seal volume from mass and either density or length and girth'''
+    if (length is not None) and (girth is not None):
+        _, seal_vol = surf_vol(length, girth)
+    else:
+        seal_vol = mass_kg / dens_kgm3
+
+    return seal_vol
