@@ -61,12 +61,27 @@ def add_alpha_labels(axes, xpos=0.03, ypos=0.95, color=None, boxstyle='square',
     import seaborn
     import string
 
+    if (len(xpos) > 1) or (len(ypos) > 1):
+        try:
+            assert (len(axes) == len(xpos))
+        except AssertionError as e:
+            e.args += 'xpos iterable must be same length as axes'
+            raise
+        try:
+            assert (len(axes) == len(ypos))
+        except AssertionError as e:
+            e.args += 'ypos iterable must be same length as axes'
+            raise
+    else:
+        xpos = [xpos,]
+        ypos = [ypos,]
+
     colors = seaborn.color_palette()
     abc = string.ascii_uppercase
 
-    for c, (label, ax) in enumerate(zip(abc[:len(axes)], axes)):
+    for i, (label, ax) in enumerate(zip(abc[:len(axes)], axes)):
         if color is None:
-            color = colors[c]
+            color = colors[i]
         kwargs = dict(color=color,
                       fontweight='bold',)
 
@@ -75,7 +90,7 @@ def add_alpha_labels(axes, xpos=0.03, ypos=0.95, color=None, boxstyle='square',
                      edgecolor=edgecolor,
                      alpha=1.0)
 
-        ax.text(0.03, 0.95, '{}.'.format(label), transform=ax.transAxes,
+        ax.text(xpos[i], ypos[i], '{}.'.format(label), transform=ax.transAxes,
                 fontsize=14, verticalalignment='top', bbox=bbox, **kwargs)
     return axes
 
