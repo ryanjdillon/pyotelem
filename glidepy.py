@@ -147,7 +147,7 @@ def lleo_glide_analysis(path_root, path_acc, path_glide, path_exp,
     from rjdtools import yaml_tools
     import logger
     import utils
-    import utils_data
+    import utils_smartmove
     import utils_plot
 
     # Input filenames
@@ -276,7 +276,7 @@ def lleo_glide_analysis(path_root, path_acc, path_glide, path_exp,
     # Include duration in filtering if splitting is fast enough?
     # Filter subglides
     exp_ind = numpy.where(masks['exp'])[0]
-    masks['filt_sgls'], sgls['mask'] = utils_data.filter_sgls(len(sensors),
+    masks['filt_sgls'], sgls['mask'] = utils_smartmove.filter_sgls(len(sensors),
                                                    exp_ind,
                                                    sgls,
                                                    cfg_filt['pitch_thresh'],
