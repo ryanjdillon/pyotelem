@@ -78,7 +78,7 @@ def run_mcmc_all(root_path, glide_path, mcmc_path, manual_selection=True,
     import datetime
     import os
 
-    import utils_data
+    import utils_smartmove
 
     now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     n_init = 10000
@@ -93,7 +93,7 @@ def run_mcmc_all(root_path, glide_path, mcmc_path, manual_selection=True,
     # Load data
     sgl_cols = ['exp_id', 'dive_id', 'mean_speed', 'mean_depth',
                 'mean_sin_pitch', 'mean_swdensity', 'mean_a', 'SE_speed_vs_time']
-    exps, sgls, dives = utils_data.create_mcmc_inputs(root_path, glide_path,
+    exps, sgls, dives = utils_smartmove.create_mcmc_inputs(root_path, glide_path,
                                                       trace_path, sgl_cols,
                                                       manual_selection=manual_selection)
     if debug:

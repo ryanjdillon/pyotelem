@@ -45,7 +45,7 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
     import pickle
     import theano
 
-    import utils_data
+    import utils_smartmove
     from rjdtools import yaml_tools
 
     # Environment settings - logging, Theano, load configuration, set paths
@@ -91,7 +91,7 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
     sgl_cols = cfg['data']['sgl_cols'] + cfg['net_all']['features']
 
     # Compile output from glides into single input dataframe
-    _, sgls, _ = utils_data.create_ann_inputs(path_root,
+    _, sgls, _ = utils_smartmove.create_ann_inputs(path_root,
                                               path_acc,
                                               glide_path,
                                               path_ann,
