@@ -43,7 +43,7 @@ def bodycomp(mass, tbw, method='reilly', simulate=False, n_rand=1000):
 
     Returns
     -------
-    bc: pandas.Dataframe
+    field: pandas.Dataframe
         dataframe containing columns for each body composition value
     '''
     import numpy
