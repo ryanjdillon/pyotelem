@@ -70,8 +70,8 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
     path_acc        = paths['acc']
     glide_path      = paths['glide']
     path_ann        = paths['ann']
-    path_bc         = paths['bodycondition']
-    fname_bc        = 'field_experiments.p'
+    path_csv        = paths['csv']
+    fname_field     = 'field_experiments.p'
     fname_sgls      = 'data_sgls.p'
     fname_mask_sgls = 'mask_sgls_filt.p'
     fname_ann_sgls  = 'sgls_all.p'
@@ -95,8 +95,8 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
                                               path_acc,
                                               glide_path,
                                               path_ann,
-                                              path_bc,
-                                              fname_bc,
+                                              path_csv,
+                                              fname_field,
                                               fname_sgls,
                                               fname_mask_sgls,
                                               sgl_cols,

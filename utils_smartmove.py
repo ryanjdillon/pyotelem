@@ -110,21 +110,21 @@ def apply_mods(mass_kg, dens_kgm3, mod_type, n_mods, length=None, girth=None,
     return total_dens
 
 
-def add_bodydensity_to_experiments(field_file, isotope_file):
+def add_bodydensity_to_experiments(path_field, path_isotope):
     import numpy
     import pandas
 
     import utils_seal_physio
 
     # Load experiments and convert datetimes to datetime
-    field = pandas.read_csv(field_file, comment='#')
+    field = pandas.read_csv(path_field, comment='#')
     field['date'] = pandas.to_datetime(field['date'])
 
     # Remove rows without an ID (experiments not to be used)
     field = field[~numpy.isnan(field['id'])]
 
     # Load isotope analysis and isotopemetric data, skip first 4 rows
-    isotope = pandas.read_csv(isotope_file, comment='#')
+    isotope = pandas.read_csv(path_isotope, comment='#')
 
     # Get percent body compositions, including density - what we want
     perc_comps = utils_seal_physio.lip2dens(isotope['fat_perc'])
@@ -164,8 +164,8 @@ def make_field_isotope():
 
     paths = yaml_tools.read_yaml('./cfg_paths.yaml')
 
-    root_path = paths['root']
-    isotope_path = paths['bodycondition']
+    path_root = paths['root']
+    path_csv = paths['csv']
 
     fname_field_csv    = 'field_experiments.csv'
     fname_isotope_csv = 'isotope_experiments.csv'
@@ -173,13 +173,13 @@ def make_field_isotope():
     fname_field_p      = 'field_experiments.p'
     fname_isotope_p   = 'isotope_experiments.p'
 
-    field_file = os.path.join(root_path, isotope_path, fname_field_csv)
-    isotope_file = os.path.join(root_path, isotope_path, fname_isotope_csv)
+    path_field = os.path.join(path_root, path_csv, fname_field_csv)
+    path_isotope = os.path.join(path_root, path_csv, fname_isotope_csv)
 
-    field, isotope = add_bodydensity_to_experiments(field_file, isotope_file)
+    field  field, isotope = add_bodydensity_to_experiments(path_field, path_isotope)
 
-    field.to_pickle(os.path.join(root_path, isotope_path, fname_field_p))
-    isotope.to_pickle(os.path.join(root_path, isotope_path, fname_isotope_p))
+    field.to_pickle(os.path.join(path_root, path_csv, fname_field_p))
+    isotope.to_pickle(os.path.join(path_root, path_csv, fname_isotope_p))
 
     return field, isotope
 
@@ -193,47 +193,47 @@ def filter_sgls(n_samples, exp_ind, sgls, max_pitch, min_depth,
     from bodycondition import utils
 
     # Defined experiment indices
-    exp_mask = (sgls['start_idx'] >= exp_ind[0]) & \
+    mask_exp = (sgls['start_idx'] >= exp_ind[0]) & \
                (sgls['stop_idx'] <= exp_ind[-1])
 
     # Found within a dive
-    diveid_mask = ~numpy.isnan(sgls['dive_id'].astype(float))
+    mask_divid = ~numpy.isnan(sgls['dive_id'].astype(float))
 
     # Uniformity in phase (dive direction)
-    phase_mask = (sgls['dive_phase'] == 'descent') | \
+    mask_phase = (sgls['dive_phase'] == 'descent') | \
                  (sgls['dive_phase'] == 'ascent')
 
     # Depth change and minimum depth constraints
-    depth_mask = (sgls['total_depth_change'] < max_depth_delta) & \
+    mask_depth = (sgls['total_depth_change'] < max_depth_delta) & \
                  (sgls['total_depth_change'] > min_depth)
 
     # Pitch angle constraint
-    deg_mask = (sgls['mean_pitch'] <  max_pitch) & \
+    mask_deg = (sgls['mean_pitch'] <  max_pitch) & \
                (sgls['mean_pitch'] > -max_pitch)
 
     # Speed constraints
-    speed_mask = (sgls['mean_speed'] > min_speed) & \
+    mask_speed = (sgls['mean_speed'] > min_speed) & \
                  (sgls['mean_speed'] < max_speed) & \
                  (sgls['total_speed_change'] < max_speed_delta)
 
     # Concatenate masks
-    sgls_mask = diveid_mask & phase_mask & exp_mask & \
-                deg_mask    & depth_mask & speed_mask
+    mask_sgls = mask_divid & mask_phase & mask_exp & \
+                mask_deg    & mask_depth & mask_speed
 
     # Extract glide start/stop indices within above constraints
-    start_ind = sgls[sgls_mask]['start_idx'].values
-    stop_ind  = sgls[sgls_mask]['stop_idx'].values
+    start_ind = sgls[mask_sgls]['start_idx'].values
+    stop_ind  = sgls[mask_sgls]['stop_idx'].values
 
     # Create mask for all data from valid start/stop indices
-    data_sgl_mask = utils.mask_from_noncontiguous_indices(n_samples,
+    mask_data_sgl = utils.mask_from_noncontiguous_indices(n_samples,
                                                           start_ind,
                                                           stop_ind)
     # Catch error with no matching subglides
-    num_valid_sgls = len(numpy.where(sgls_mask)[0])
+    num_valid_sgls = len(numpy.where(mask_sgls)[0])
     if num_valid_sgls == 0:
         raise SystemError('No sublides found meeting filter criteria')
 
-    return data_sgl_mask, sgls_mask
+    return mask_data_sgl, mask_sgls
 
 
 def get_subdir(path, cfg):
@@ -315,15 +315,15 @@ def compile_experiments(path_root, path_glide, cfg, fname_sgls,
     first_iter = True
 
     # Generate list of possible paths to process in glide directory
-    glide_data_paths_found = False
+    glide_paths_found = False
     for path_exp in os.listdir(os.path.join(path_root, path_glide)):
-        glide_data_path = os.path.join(path_root, path_glide, path_exp)
-        if os.path.isdir(glide_data_path):
+        path_data_glide = os.path.join(path_root, path_glide, path_exp)
+        if os.path.isdir(path_data_glide):
             path_exps.append(path_exp)
-            glide_data_paths_found = True
+            glid_paths_found = True
 
     # Throw exception if no data found in glide path
-    if not glide_data_paths_found:
+    if not glide_paths_found:
         raise SystemError('No glide paths found, check input directories '
                           'for errors\n'
                           'path_root: {}\n'
@@ -342,9 +342,9 @@ def compile_experiments(path_root, path_glide, cfg, fname_sgls,
         path_exp = path_exps[i]
 
         # Concatenate data path
-        glide_data_path = os.path.join(path_root, path_glide, path_exp)
-        subdir_path = get_subdir(glide_data_path, cfg)
-        glide_data_path = os.path.join(glide_data_path, subdir_path)
+        path_data_glide = os.path.join(path_root, path_glide, path_exp)
+        path_subdir = get_subdir(path_data_glide, cfg)
+        path_data_glide = os.path.join(path_data_glide, path_subdir)
 
         print('Processing {}'.format(path_exp))
 
@@ -359,14 +359,14 @@ def compile_experiments(path_root, path_glide, cfg, fname_sgls,
         tag_ids.append(tag_id)
 
         # Read sgls dataframe, filter out only desired columns
-        sgls_path = os.path.join(glide_data_path, fname_sgls)
-        sgls_exp  = pandas.read_pickle(sgls_path)
+        path_sgls = os.path.join(path_data_glide, fname_sgls)
+        sgls_exp  = pandas.read_pickle(path_sgls)
 
         # Filter with saved mask meeting criteria
         # TODO pass filter routine as parameter to make more general
-        sgls_mask_path = os.path.join(glide_data_path, fname_mask_sgls)
-        sgls_mask      = numpy.load(sgls_mask_path)
-        sgls_exp       = sgls_exp[sgls_mask]
+        path_mask_sgls = os.path.join(path_data_glide, fname_mask_sgls)
+        mask_sgls      = numpy.load(path_mask_sgls)
+        sgls_exp       = sgls_exp[mask_sgls]
 
         # Get unique dives in which all subglides occur
         dive_ids_exp = numpy.unique(sgls_exp['dive_id'][:])
@@ -413,7 +413,7 @@ def __add_ids_to_df(df, exp_id, animal_id=None, tag_id=None):
     return df
 
 
-def create_ann_inputs(path_root, path_acc, path_glide, path_ann, path_bc, fname_bc,
+def create_ann_inputs(path_root, path_acc, path_glide, path_ann, path_csv, fname_field_p,
         fname_sgls, fname_mask_sgls, sgl_cols, manual_selection=True):
     '''Compile all experiment data for ann model input'''
     import numpy
@@ -422,8 +422,8 @@ def create_ann_inputs(path_root, path_acc, path_glide, path_ann, path_bc, fname_
 
     from rjdtools import yaml_tools
 
-    def insert_bc_col_to_sgls(sgls, bc):
-        '''Insert bodycondition from nearest date in bc to sgls dataframes'''
+    def insert_field_col_to_sgls(sgls, field):
+        '''Insert bodycondition from nearest date in field to sgls dataframes'''
         import numpy
 
         col_name = 'total_dens'
@@ -437,10 +437,10 @@ def create_ann_inputs(path_root, path_acc, path_glide, path_ann, path_bc, fname_
             # TODO if using buoyancy, calculate with local seawater density
 
             mask_sgl = sgls['exp_id'] == exp_id
-            mask_bc = bc['exp_id'] == exp_id
+            mask_field = field['exp_id'] == exp_id
 
             try:
-                value = bc.ix[mask_bc, 'total_dens'].values[0]
+                value = field.ix[mask_field, 'total_dens'].values[0]
                 sgls.ix[mask_sgl, col_name] = value
             except:
                 raise SystemError('{} has no associated entries in the body '
@@ -457,8 +457,8 @@ def create_ann_inputs(path_root, path_acc, path_glide, path_ann, path_bc, fname_
                                                         fname_mask_sgls)
 
     # Read body condition data
-    bc_file_path = os.path.join(path_root, path_bc, fname_bc)
-    bc = pandas.read_pickle(bc_file_path)
+    path_field = os.path.join(path_root, path_csv, fname_field_p)
+    field = pandas.read_pickle(path_field)
 
     # TODO could move this to `utils_glide`
     # Add integer dive_phase column
@@ -474,7 +474,7 @@ def create_ann_inputs(path_root, path_acc, path_glide, path_ann, path_bc, fname_
     sgls = sgls_all[sgl_cols]
 
     # Add column with body condition target values to `sgls`
-    sgls = insert_bc_col_to_sgls(sgls, bc)
+    sgls = insert_field_col_to_sgls(sgls, field)
 
     # Save output
     sgls.to_pickle(os.path.join(path_root, path_ann, 'sgls_all.p'))
@@ -541,7 +541,7 @@ def make_model_inputs():
     path_glide = paths['glide']
     path_mcmc  = paths['mcmc']
     path_ann   = paths['ann']
-    path_bc    = paths['bodycondition']
+    path_csv    = paths['csv']
 
     fname_sgls      = 'data_sgls.p'
     fname_mask_sgls = 'mask_sgls_filt.p'
@@ -561,13 +561,13 @@ def make_model_inputs():
     sgl_cols = ['exp_id', 'mean_speed', 'total_depth_change',
                 'mean_sin_pitch', 'mean_swdensity', 'SE_speed_vs_time']
 
-    fname_bc = 'coexist_experiments.p'
+    fname_field_p = 'field_experiments.p'
     ann_exps, ann_sgls, ann_dives = create_ann_inputs(path_root,
                                                       path_acc,
                                                       path_glide,
                                                       path_ann,
-                                                      path_bc,
-                                                      fname_bc,
+                                                      path_csv,
+                                                      fname_field_p,
                                                       fname_sgls,
                                                       fname_mask_sgls,
                                                       sgl_cols)

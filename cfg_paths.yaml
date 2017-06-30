@@ -17,7 +17,7 @@ acc_cal:
       04: 20160418_W190PD3GT_34840_Skinny_2Neutral
 
 # Contains csv and pandas pickled dataframes of bc measurements
-bodycondition: data_body-condition/
+csv: data_csv/
 
 # Path containing all text respirometry data
 respirometry: data_respirometry/textfiles/Freq0.01
