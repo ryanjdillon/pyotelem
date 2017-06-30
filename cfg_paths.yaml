@@ -30,8 +30,3 @@ mcmc: model_mcmc
 
 # Path for MCMC model input files
 ann: model_ann
-
-# Default paths for debugging glide analysis
-debug:
-  exp_path: 20150306_W190-PD3GT_34839_Notag_Control
-  glide_cfg_path: 20150306_W190-PD3GT_34839_Notag_Control

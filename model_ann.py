@@ -1,4 +1,6 @@
 
+# TODO save most recent model path to paths yaml
+
 def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
     '''
     Compile subglide data, tune network architecture and test dataset size
@@ -69,7 +71,7 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
     glide_path      = paths['glide']
     path_ann        = paths['ann']
     path_bc         = paths['bodycondition']
-    fname_bc        = 'coexist_experiments.p'
+    fname_bc        = 'field_experiments.p'
     fname_sgls      = 'data_sgls.p'
     fname_mask_sgls = 'mask_sgls_filt.p'
     fname_ann_sgls  = 'sgls_all.p'
@@ -79,6 +81,10 @@ def run(file_cfg_paths, path_cfg_ann, debug=False, plots=False):
 
     # Print input data configuration
     print_dict_values(cfg['data'])
+
+    # Generate experiments/isotope pandas from csv
+    import utils_smartmove
+    field, isotope = utils_smartmove.make_field_isotope()
 
     # Compile, split, and normalize data
     #---------------------------------------------------------------------------
