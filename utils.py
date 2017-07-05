@@ -1,6 +1,19 @@
 
 def nearest(items, pivot):
-    '''Find nearest value in array, including datetimes'''
+    '''Find nearest value in array, including datetimes
+
+    Args
+    ----
+    items: iterable
+        List of values from which to find nearest value to `pivot`
+    pivot: int or float
+        Value to find nearest of in `items`
+
+    Returns
+    -------
+    nearest: int or float
+        Value in items nearest to `pivot`
+    '''
     return min(items, key=lambda x: abs(x - pivot))
 
 
@@ -55,8 +68,30 @@ def contiguous_regions(condition):
 
 
 def rm_regions(a, b, a_start_ind, a_stop_ind):
-    '''Remove additional contiguous regions in `a` that occur before a
-    complimentary region in `b` has occured'''
+    '''Remove contiguous regions in `a` before region `b`
+
+    Boolean arrays `a` and `b` should have alternating occuances of regions of
+    `True` values. This routine removes additional contiguous regions in `a`
+    that occur before a complimentary region in `b` has occured
+
+    Args
+    ----
+    a: ndarray
+        Boolean array with regions of contiguous `True` values
+    b: ndarray
+        Boolean array with regions of contiguous `True` values
+    a_start_ind: ndarray
+        indices of start of `a` regions
+    a_stop_ind: ndarray
+        indices of stop of `a` regions
+
+    Returns
+    -------
+    a: ndarray
+        Boolean array with regions for which began before a complimentary
+        region in `b` have occured
+    '''
+
     import numpy
 
     for i in range(len(a_stop_ind)):
@@ -73,11 +108,13 @@ def recursive_input(input_label, type_class):
 
     Args
     ----
-    type_class (type): name of python type (e.g. float, no parentheses)
+    type_class: type
+        name of python type (e.g. float, no parentheses)
 
     Returns
     -------
-    output: value entered by user converted to type `type_class`
+    output: str
+        value entered by user converted to type `type_class`
 
     Note
     ----
@@ -109,6 +146,8 @@ def recursive_input(input_label, type_class):
 def get_dir_indices(msg, dirs):
     '''Return path(s) indices of directory list from user input
 
+    Args
+    ----
     msg: str
         String with message to display before pass selection input
     dir_list: array-like

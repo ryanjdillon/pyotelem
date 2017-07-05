@@ -377,6 +377,41 @@ def calc_glide_des_asc(depths, pitch_lf, roll_lf, heading_lf, swim_speed,
     ----
     SGL: numpy.ndarray, shape (n,2)
         start and end index positions for sub-glides
+
+    Returns
+    -------
+    sgls: pandas.DataFrame
+        Dataframe with summary information for each subglide defined by `SGL`
+        start/stop indices
+
+        Dataframe columns:
+        dive_phase
+        dive_id
+        dive_min_depth
+        dive_max_depth
+        dive_duration
+        start_idx
+        stop_idx
+        duration
+        mean_depth
+        total_depth_change
+        abs_depth_change
+        mean_speed
+        total_speed_change
+        mean_pitch
+        mean_sin_pitch
+        SD_pitch
+        mean_temp
+        mean_swdensity
+        mean_a
+        R2_speed_vs_time
+        SE_speed_vs_time
+        mean_pitch_circ
+        pitch_concentration
+        mean_roll_circ
+        roll_concentration
+        mean_heading_circ
+        heading_concentration
     '''
     import astropy.stats
     import numpy
@@ -561,6 +596,45 @@ def calc_glide_des_asc(depths, pitch_lf, roll_lf, heading_lf, swim_speed,
 
 
 def calc_glide_ratios(dives, des, asc, glide_mask, depths, pitch_lf):
+    '''Calculate summary information on glides during dive ascent/descents
+
+    Args
+    ----
+    dives: (n,10)
+        Numpy record array with summary information of dives in sensor data
+
+        Columns:
+        dive_id, start_idx, stop_idx, dive_dur, depth_max, depth_max_i,
+        depth_min, depth_min_i, depth_mean, comp_mean,
+    des: ndarray
+        Boolean mask of descents over sensor data
+    asc: ndarray
+        Boolean mask of descents over sensor data
+    glid_mask: ndarray
+        Boolean mask of glides over sensor data
+    depths: ndarray
+        Depth values at each sensor sampling
+    pitch_lf: ndarray
+        Pitch in radians over the low frequency signals of acceleration
+
+    Returns
+    -------
+    gl_ratio: pandas.DataFrame
+        Dataframe of summary information of glides during dive descent/ascents
+
+        Columns:
+
+        des_duration
+        des_gl_duration
+        des_gl_ratio
+        des_mean_pitch
+        des_rate
+        asc_duration
+        asc_gl_duration
+        asc_gl_ratio
+        asc_mean_pitch
+        asc_rate
+    '''
     import numpy
     import pandas
 

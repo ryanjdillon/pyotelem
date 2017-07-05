@@ -4,10 +4,13 @@ def fixgaps(y):
 
     Args
     ----
-    x: array containing NaNs to interpolate over
+    x: ndarray
+        array containing NaNs to interpolate over
+
     Returns
     -------
-    y_interp: array with NaN values replaced by interpolated values
+    y_interp: ndarray
+        array with NaN values replaced by interpolated values
     '''
     import numpy
 
@@ -33,20 +36,27 @@ def buffer(x, n, p=0, opt=None, z_out=True):
 
     Args
     ----
-    x:     Signal array
-    n:     Number of data segments
-    p:     Number of values to overlap
-    opt:   Initial condition options. None (default) sets the first `p` values
-           to zero, while 'nodelay' begins filling the buffer immediately.
-    z_out: Boolean switch to return z array. True returns an additional array
-           with these values. False returns only the buffer array including
-           these values.
+    x: ndarray
+        Signal array
+    n: int
+        Number of data segments
+    p: int
+        Number of values to overlap
+    opt: str
+        Initial condition options. None (default) sets the first `p` values to
+        zero, while 'nodelay' begins filling the buffer immediately.
+    z_out: bool
+        Boolean switch to return z array. True returns an additional array with
+        these values. False returns only the buffer array including these
+        values.
 
     Returns
     -------
-    b:     buffer array with dimensions (n, cols)
-    z:     array of values leftover that do not completely fill an n-length
-           segment with overlap
+    b: ndarray
+        buffer array with dimensions (n, cols)
+    z: ndarray
+        array of values leftover that do not completely fill an n-length
+        segment with overlap
     '''
     import numpy
 
@@ -120,6 +130,8 @@ def event_on(cue, t):
     ----
     cue: numpy.ndarray, shape (n, 2)
         is a list of events in the format: cue = [start_time,duration]
+    t: ndarray
+        array of time stames in seconds
 
     Returns
     -------

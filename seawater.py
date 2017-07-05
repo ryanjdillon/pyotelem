@@ -1,17 +1,23 @@
 
-def get_SST(datetimes, lons, lats):
-    #import planetos
-
-    #SST = retrieve_SST_from_somewhere(datetimes, lons.min(), lons.max(),
-    #                                             lats.min(), lats.max())
-    SST = None
-
-    return SST
-
 def estimate_seawater_density(depths, depth_ctd, temp_ctd, sali_ctd):
     '''Estimate seawater density
 
-    From body condition script
+    depths: ndarray
+        Depths at which seawater density is to be estimated
+    depth_ctd:
+        Depths of CTD samples
+    temp_ctd:
+        CTD temperature values
+    sali_ctd:
+        CTD salinity values
+
+    Returns
+    -------
+    tsd: pandas.DataFrame
+        Dataframe with temperature, salinity and depth at regular
+        whole integer depth or pressure intervals.
+    densities: ndarray
+        Seawater density values for each depth in `depths`
     '''
     import utils_sewater
 
@@ -24,7 +30,28 @@ def estimate_seawater_density(depths, depth_ctd, temp_ctd, sali_ctd):
 
 
 def SWdensityFromCTD(depth_ctd, temp_ctd, sali_ctd, duplicates='last'):
-    '''Calculate seawater density at CTD depth'''
+    '''Calculate seawater density at CTD depth
+
+    Args
+    ----
+    depth_ctd: ndarray
+        CTD depths in meters or pressure
+    temp_ctd: ndarray
+        Temperature values associated with each depth/pressure
+    sali_ctd: ndarray
+        Salinity values associated with each depth/pressure
+    duplicates: str
+        String indicating method to use when duplicate depths or pressures are
+        found in `depth_ctd`. 'first' will use the temperature and salinity
+        values from the first duplicate, and 'last' will use the values from
+        the last duplicate (Default 'last').
+
+    Returns
+    -------
+    tsd: pandas.DataFrame
+        Dataframe with temperature, salinity and depth at regular
+        whole integer depth or pressure intervals.
+    '''
     import numpy
     import pandas
 
@@ -44,7 +71,7 @@ def SWdensityFromCTD(depth_ctd, temp_ctd, sali_ctd, duplicates='last'):
         elif duplicates == 'first':
             idx = numpy.where(depths == d)[0][0]
 
-        # Fill temperature and salinity at measured depths, rounded to whole meter
+        # Fill temp and salinity at measured depths, rounded to whole meter
         tsd['temperature'][d] = temp_ctd[idx]
         tsd['salinity'][d]    = sali_ctd[idx]
 
@@ -159,7 +186,10 @@ def sw_smow(T):
 
 
 #def SWdensityFromCTD(depth_ctd, temp_ctd, sali_ctd, depths):
-#    '''Calculate seawater density at CTD depth'''
+#    '''Calculate seawater density at CTD depth
+#
+#    Translated from Dtag toolbox
+#    '''
 #    import numpy
 #
 #    import utils_dtag

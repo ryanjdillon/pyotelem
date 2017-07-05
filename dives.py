@@ -1,26 +1,33 @@
-def calc_filter_dp(depths_m, cutoff, fs):
-    '''Calculate the delta depth over time and filter to cuttoff frequency'''
-    import numpy
-    import scipy.signal
-
-    from biotelem.acc import accfilter
-
-    # Nyquist frequency
-    nyq = fs/2.0
-    # Calculate normalized cutoff freq with nyquist f
-    dp_w = cutoff / nyq
-
-    # TODO butter IIR filter, change to FIR?
-    depth_fs = numpy.hstack(([0], numpy.diff(depths_m))) * fs
-    #b, a     = scipy.signal.butter(4, dp_w, btype='low')
-    #dp       = scipy.signal.filtfilt(b, a, depth_fs)
-    b, a = accfilter.butter_lowpass(cutoff, fs)
-    dp = accfilter.butter_apply(b, a, depth_fs)
-
-    return dp
-
-
 def finddives2(depths, min_dive_thresh=10):
+    '''Find dives in depth data below a minimum dive threshold
+
+    Args
+    ----
+    depths: ndarray
+        Datalogger depth measurements
+    min_dive_thresh: float
+        Minimum depth threshold for which to classify a dive
+
+    Returns
+    -------
+    dives: ndarray
+        Dive summary information in a numpy record array
+
+        Columns:
+          dive_id
+          start_idx
+          stop_idx
+          dive_dur
+          depth_max
+          depth_max_i
+          depth_min
+          depth_min_i
+          depth_mean
+          comp_mean
+    dive_mask: ndarray
+        Boolean mask array over depth data. Cells with `True` are dives and
+        cells with `False` are not.
+    '''
     import numpy
     import pandas
 
@@ -72,6 +79,29 @@ def finddives2(depths, min_dive_thresh=10):
 
 
 def get_des_asc2(depths, dive_mask, pitch, cutoff, fs, order=5):
+    '''Get boolean masks of descents and ascents in the depth data
+
+    Args
+    ----
+    dive_mask: ndarray
+        Boolean mask array over depth data. Cells with `True` are dives and
+        cells with `False` are not.
+    pitch: ndarray
+        Pitch angle in radians
+    cutoff: float
+        Cutoff frequency at which signal will be filtered
+    fs: float
+        Sampling frequency
+    order: int
+        Order of butter filter to apply
+
+    Returns
+    -------
+    des_mask: ndarray
+        Boolean mask of descents in the depth data
+    asc_mask: ndarray
+        Boolean mask of ascents in the depth data
+    '''
     import numpy
     import utils_signal
 
@@ -93,7 +123,22 @@ def get_des_asc2(depths, dive_mask, pitch, cutoff, fs, order=5):
 
 
 def rm_incomplete_des_asc(des_mask, asc_mask):
-    '''Remove descents-ascents that have no corresponding ascent-descent'''
+    '''Remove descents-ascents that have no corresponding ascent-descent
+
+    Args
+    ----
+    des_mask: ndarray
+        Boolean mask of descents in the depth data
+    asc_mask: ndarray
+        Boolean mask of ascents in the depth data
+
+    Returns
+    -------
+    des_mask: ndarray
+        Boolean mask of descents with erroneous regions removed
+    asc_mask: ndarray
+        Boolean mask of ascents with erroneous regions removed
+    '''
     import utils
 
     # Get start/stop indices for descents and ascents
@@ -107,6 +152,25 @@ def rm_incomplete_des_asc(des_mask, asc_mask):
 
 
 def get_bottom(depths, des_mask, asc_mask):
+    '''Get boolean mask of regions in depths the animal is at the bottom
+
+    Args
+    ----
+    des_mask: ndarray
+        Boolean mask of descents in the depth data
+    asc_mask: ndarray
+        Boolean mask of ascents in the depth data
+
+    Returns
+    -------
+    BOTTOM: ndarray (n,4)
+        Indices and depths for when the animal is at the bottom
+
+        0: start ind
+        1: depth at start
+        2: stop ind
+        3: depth at stop
+    '''
     import numpy
 
     import utils
@@ -143,16 +207,16 @@ def get_phase(n_samples, des_mask, asc_mask):
     Args
     ----
     n_samples: int
-        length of output phase array
+        Length of output phase array
     des_mask: numpy.ndarray, shape (n,)
-        boolean mask of values where animal is descending
+        Boolean mask of values where animal is descending
     asc_mask: numpy.ndarray, shape(n,)
-        boolean mask of values where animal is ascending
+        Boolean mask of values where animal is ascending
 
     Returns
     -------
     phase: numpy.ndarray, shape (n,)
-        signed integer array with 0: neither ascending/descending, 1:
+        Signed integer array with 0: neither ascending/descending, 1:
         ascending, -1: descending.
     '''
     import numpy
@@ -162,6 +226,42 @@ def get_phase(n_samples, des_mask, asc_mask):
     phase[des_mask] = -1
 
     return phase
+
+
+#def calc_filter_dp(depths_m, cutoff, fs):
+#    '''Calculate the delta depth over time and filter to cuttoff frequency
+#
+#    Args
+#    ----
+#    depths_m: ndarray
+#        Array fo depths at sensor samples in meters
+#    cutoff: float
+#        Cutoff frequency at which signal will be filtered
+#    fs: float
+#        Sampling frequency
+#
+#    Returns
+#    -------
+#    dp:
+#    '''
+#    import numpy
+#    import scipy.signal
+#
+#    from biotelem.acc import accfilter
+#
+#    # Nyquist frequency
+#    nyq = fs/2.0
+#    # Calculate normalized cutoff freq with nyquist f
+#    dp_w = cutoff / nyq
+#
+#    # TODO butter IIR filter, change to FIR?
+#    depth_fs = numpy.hstack(([0], numpy.diff(depths_m))) * fs
+#    #b, a     = scipy.signal.butter(4, dp_w, btype='low')
+#    #dp       = scipy.signal.filtfilt(b, a, depth_fs)
+#    b, a = accfilter.butter_lowpass(cutoff, fs)
+#    dp = accfilter.butter_apply(b, a, depth_fs)
+#
+#    return dp
 
 
 #def finddives(depths_m, fs, thresh=10, surface=1, findall=False):
