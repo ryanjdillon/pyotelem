@@ -4,17 +4,21 @@ def calc_PRH(ax, ay, az):
 
     Args
     ----
-    A_g: numpy.ndarray, shape (n,3)
-        triaxial movement array with n samples over 3 axes (0:ax, 1:ay, 2:az)
+    ax: ndarray
+        x-axis acceleration values
+    ay: ndarray
+        y-axis acceleration values
+    az: ndarray
+        z-axis acceleration values
 
     Returns
     -------
-    pitch: numpy.ndarray, 1D
-        pitch in radians
-    roll: numpy.ndarray, 1D
-        roll in radians
-    heading: numpy.ndarray, 1D
-        heading in radians
+    pitch: ndarray
+        Pitch angle in radians
+    roll: ndarray
+        Pitch angle in radians
+    yaw: ndarray
+        Pitch angle in radians
     '''
 
     pitch = calc_pitch(ax, ay, az)
@@ -28,21 +32,66 @@ def calc_PRH(ax, ay, az):
 
 
 def calc_pitch(ax, ay, az):
-    '''Angle of x-axis relative to ground (theta)'''
+    '''Angle of x-axis relative to ground (theta)
+
+    Args
+    ----
+    ax: ndarray
+        x-axis acceleration values
+    ay: ndarray
+        y-axis acceleration values
+    az: ndarray
+        z-axis acceleration values
+
+    Returns
+    -------
+    pitch: ndarray
+        Pitch angle in radians
+    '''
     import numpy
     # arctan2 not needed here to cover all quadrants, just for consistency
     return numpy.arctan(ax, numpy.sqrt(ay**2+az**2))
 
 
 def calc_roll(ax, ay, az):
-    '''Angle of y-axis relative to ground (phi)'''
+    '''Angle of y-axis relative to ground (phi)
+
+    Args
+    ----
+    ax: ndarray
+        x-axis acceleration values
+    ay: ndarray
+        y-axis acceleration values
+    az: ndarray
+        z-axis acceleration values
+
+    Returns
+    -------
+    roll: ndarray
+        Roll angle in radians
+    '''
     import numpy
     #return numpy.arctan(ay/numpy.sqrt(ax**2+az**2))
     return numpy.arctan2(ay,az)
 
 
 def calc_yaw(ax, ay, az):
-    '''Angle of z-axis relative to ground (psi)'''
+    '''Angle of z-axis relative to ground (psi)
+
+    Args
+    ----
+    ax: ndarray
+        x-axis acceleration values
+    ay: ndarray
+        y-axis acceleration values
+    az: ndarray
+        z-axis acceleration values
+
+    Returns
+    -------
+    yaw: ndarray
+        Yaw angle in radians
+    '''
     import numpy
     #return numpy.arctan(numpy.sqrt(ax**2+ay**2)/az)
     return numpy.arctan2(ax,ay)
@@ -51,8 +100,18 @@ def calc_yaw(ax, ay, az):
 def absdeg(deg):
     '''Change from signed degrees to 0-180 or 0-360 ranges
 
-    e.g. An array with values -180:180 becomes 0:360
-    e.g. An array with values -90:90 becomes 0:180
+    deg: ndarray
+        Movement data in pitch, roll, yaw (degrees)
+
+    Returns
+    -------
+    deg_abs: ndarray
+        Movement translated from -180:180/-90:90 degrees to 0:360/0:180 degrees
+
+    Example
+    -------
+    deg = numpy.array([-170, -120, 0, 90])
+    absdeg(deg) # returns array([190, 240,   0,  90])
     '''
     import numpy
 
@@ -69,6 +128,20 @@ def absdeg(deg):
 def acceleration_magnitude(ax, ay, az):
     '''Cacluate the magnitude of 3D acceleration
 
+    Args
+    ----
+    ax: ndarray
+        x-axis acceleration values
+    ay: ndarray
+        y-axis acceleration values
+    az: ndarray
+        z-axis acceleration values
+
+    Returns
+    -------
+    acc_mag: ndarray
+        Magnitude of acceleration from combined acceleration axes
+
     http://physics.stackexchange.com/a/41655/126878
     '''
     import numpy
@@ -76,7 +149,27 @@ def acceleration_magnitude(ax, ay, az):
 
 
 def triaxial_integration(x, y, z, initial=0):
-    '''Integrate three axes to obtain velocity of position'''
+    '''Integrate tri-axial vector data
+
+    The integration of acceleration is the velocity, and the integration of
+    velocity is the position.
+
+    x: ndarray
+        X-axis component of vectors
+    y: ndarray
+        Y-axis component of vectors
+    z: ndarray
+        Z-axis component of vectors
+
+    Returns
+    -------
+    x_int: ndarray
+        Integration of x-axis component of vectors
+    y_int: ndarray
+        Integration of y-axis component of vectors
+    z_int: ndarray
+        Integration of z-axis component of vectors
+    '''
     import scipy.integrate
 
     x_int = scipy.integrate.cumtrapz(range(len(x)), x, initial=initial)
@@ -86,8 +179,8 @@ def triaxial_integration(x, y, z, initial=0):
     return x_int, y_int, z_int
 
 
-def speed_from_acc_and_ref(acc_x, fs_a, rel_speed, zero_level, theoretic_max=None,
-        rm_neg=True):
+def speed_from_acc_and_ref(acc_x, fs_a, rel_speed, zero_level,
+        theoretic_max=None, rm_neg=True):
     '''Estimate speed from x-axis acceleration, fitting to relative speed data
 
     Args
@@ -179,54 +272,3 @@ def speed_from_acc_and_ref(acc_x, fs_a, rel_speed, zero_level, theoretic_max=Non
     return speed_cal
 
 
-def speed_calibration_average(cal_fname, plot=False):
-    '''Cacluate the coefficients for the mean fit of calibrations
-
-    Notes
-    -----
-    `cal_fname` should contain three columns:
-    date,est_speed,count_average
-    2014-04-18,2.012,30
-    '''
-    import matplotlib.pyplot as plt
-    import numpy
-    import pandas
-
-    # Read calibration data
-    calibs = pandas.read_csv(cal_fname)
-
-    # Get unique dates to process fits for
-    dates = numpy.unique(calibs['date'])
-
-    # Create x data for samples and output array for y
-    n_samples = 1000
-    x = numpy.arange(n_samples)
-    fits = numpy.zeros((len(dates), n_samples), dtype=float)
-
-    # Calculate fit coefficients then store `n_samples number of samples
-    # Force intercept through zero (i.e. zero counts = zero speed)
-    # http://stackoverflow.com/a/9994484/943773
-    for i in range(len(dates)):
-        cal = calibs[calibs['date']==dates[i]]
-        xi = cal['count_average'].values[:, numpy.newaxis]
-        yi = cal['est_speed'].values
-        m, _, _, _ = numpy.linalg.lstsq(xi, yi)
-        fits[i, :] = m*x
-        # Add fit to plot if switch on
-        if plot:
-            plt.plot(x, fits[i,:], label='cal{}'.format(i))
-
-    # Calculate average of calibration samples
-    y_avg = numpy.mean(fits, axis=0)
-
-    # Add average fit to plot and show if switch on
-    if plot:
-        plt.plot(x, y_avg, label='avg')
-        plt.legend()
-        plt.show()
-
-    # Calculate fit coefficients for average samples
-    x_avg = x[:, numpy.newaxis]
-    m_avg, _, _, _ = numpy.linalg.lstsq(x_avg, y_avg)
-
-    return m_avg
