@@ -3,6 +3,7 @@ pyotelem
 
 A library for performing data analysis on biotelemetry and biologger data.
 
+|
 Install
 =======
 
@@ -12,11 +13,13 @@ Install
 .. codeblock::
     pip install pyotelem
 
+|
 Documentation
 =============
 
  * Coming shortly
 
+|
 Contributions
 =============
 
@@ -37,10 +40,13 @@ Contributions
   * **Phil Morgan and Lindsay Pender** Original sewater density routines
     written in Matlab
 
-  * Code taken or adapted from [`Stackoverflow`](https://stackoverflow.com/) is
-    in the public domain, and the respective posts where it was found should be
-    linked to in the document string of the routines in which it was used.
+  * Code taken or adapted from Stackoverflow_ is in the public domain, and the
+    respective posts where it was found should be linked to in the document
+    string of the routines in which it was used.
 
+.. Stackoverflow: https://stackoverflow.com/
+
+|
 License
 =======
 To be determined
