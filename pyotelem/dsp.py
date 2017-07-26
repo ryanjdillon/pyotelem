@@ -45,7 +45,7 @@ def findzc(x, thresh, t_max=None):
         * S contains the sign of each zero-crossing
           (1 = positive-going, -1 = negative-going).
 
-    This routine is a reimplementation of Mark Johnson's dtag_toolbox method
+    This routine is a reimplementation of Mark Johnson's Dtag toolbox method
     and tested against the Matlab version to be sure it has the same result.
     '''
     import numpy
@@ -274,63 +274,3 @@ def simple_peakfinder(x, y, delta):
                 lookformax = True
 
     return numpy.array(max_ind), numpy.array(min_ind)
-
-
-# TODO migrate test to test module and use simple `y` array
-def __test_data():
-    '''Generate test data for testing filters'''
-    import numpy
-
-    # First make some data to be filtered.
-    fs = 30.0       # sample rate, Hz
-    T = 5.0         # seconds
-    n = int(T * fs) # total number of samples
-    t = numpy.linspace(0, T, n, endpoint=False)
-
-    # "Noisy" data.  We want to recover the 1.2 Hz signal from this.
-    data = numpy.sin(1.2*2*numpy.pi*t) + 1.5*numpy.cos(9*2*numpy.pi*t) + \
-           0.5*numpy.sin(12.0*2*numpy.pi*t)
-
-    return data, fs
-
-
-def test_simple_peakfinder():
-    import matplotlib.pyplot as plt
-    import numpy
-
-    #y = [0,0,0,2,1,2,0,-2,-1,0,0,2,0,-2,-2,-2,0]
-
-    # Better for visualizing effect of `delta`
-    numpy.random.seed(0)
-    y = numpy.random.random(100)
-    x = numpy.arange(len(y))
-
-    max_ind, min_ind = simple_peakfinder(x, y, 0.01)
-
-    # Plot
-    plt.plot(x, y)
-    plt.scatter(max_ind, y[max_ind], color='blue', label='local maxima')
-    plt.scatter(min_ind, y[min_ind], color='red', label='local minima')
-    plt.legend()
-    plt.show()
-
-    return None
-
-
-def __test_butter_filter(data, fs):
-    '''Test butter filters'''
-    import utils_plot
-
-    # Filter requirements.
-    order = 6
-    cutoff = 3.667  # desired cutoff frequency of the filter, Hz
-
-    # Get the filter coefficients so we can check its frequency response.
-    b, a = butter_lowpass(cutoff, fs, order)
-
-    # Filter the data, and plot both the original and filtered signals.
-    data_f = butter_apply(b, a, data)
-
-    utils_plot.plot_data_filter(data, data_f, b, a, cutoff, fs)
-
-    return None
