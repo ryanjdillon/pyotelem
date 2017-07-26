@@ -81,10 +81,7 @@ def plot_depth_descent_ascent(depths, dive_mask, des, asc):
     '''
     import numpy
 
-    import utils_dives
-
     # Indices where depths are descents or ascents
-    # TODO if interpolating, can use `des` and `asc` from accelerometry
     des_ind = numpy.where(dive_mask & des)[0]
     asc_ind = numpy.where(dive_mask & asc)[0]
 

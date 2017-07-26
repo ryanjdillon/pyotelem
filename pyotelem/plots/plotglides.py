@@ -18,9 +18,6 @@ def plot_sgls(depths, data_sgl_mask, sgls, sgl_mask, pitch_lf, roll_lf, heading_
     import matplotlib.pyplot as plt
     import numpy
 
-    from bodycondition import utils
-    from bodycondition import utils_glides
-
     sgl_ind    = numpy.where(data_sgl_mask)[0]
     notsgl_ind = numpy.where(~data_sgl_mask)[0]
 
