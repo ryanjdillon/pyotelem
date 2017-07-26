@@ -1,0 +1,3 @@
+include doc/source/*
+include doc/make.bat
+include doc/Makefile
