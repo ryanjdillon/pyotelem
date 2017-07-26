@@ -1,6 +1,22 @@
 
 def lung_capacity(mass):
-    '''Caclulate lung capacity Kooyman and Sinnett (1981)'''
+    '''Caclulate lung capacity
+
+    Args
+    ----
+    mass: float
+        Mass of animal
+
+    Return
+    ------
+    volume: float
+        Lung volume of animal
+
+    References
+    ----------
+    Kooyman, G.L., Sinnett, E.E., 1979. Mechanical properties of the harbor
+    porpoise lung, Phocoena phocoena. Respir Physiol 36, 287–300.
+    '''
     return 0.135*(mass**0.92)
 
 
@@ -10,16 +26,21 @@ def calc_CdAm(farea, mass):
     Args
     ----
     farea: float
-        frontal area of animal
+        Frontal area of animal
     mass: float
-        total animal mass
+        Total animal mass
 
     Returns
     -------
     CdAm: float
-        friction term of hydrodynamic equation
+        Friction term of hydrodynamic equation
 
-    Miller et al. 2004: Cd set to 1.06, prolate spheroid, fineness ratio 5.0
+    References
+    ----------
+    Miller, P.J.O., Johnson, M.P., Tyack, P.L., Terray, E.A., 2004. Swimming
+    gaits, passive drag and buoyancy of diving sperm whales Physeter
+    macrocephalus. Journal of Experimental Biology 207, 1953–1967.
+    doi:10.1242/jeb.00993
     '''
     Cd = 1.06
     return Cd*area/mass
@@ -31,9 +52,9 @@ def bodycomp(mass, tbw, method='reilly', simulate=False, n_rand=1000):
     Args
     ----
     mass: ndarray
-        dry weight of the seal (kg)
+        Mass of the seal (kg)
     tbw: ndarray
-        wet weight of the seal (kg)
+        Total body water (kg)
     method: str
         name of method used to derive composition values
     simulate: bool
@@ -45,6 +66,15 @@ def bodycomp(mass, tbw, method='reilly', simulate=False, n_rand=1000):
     -------
     field: pandas.Dataframe
         dataframe containing columns for each body composition value
+
+    References
+    ----------
+    Reilly, J.J., Fedak, M.A., 1990. Measurement of the body composition of
+    living gray seals by hydrogen isotope dilution. Journal of Applied
+    Physiology 69, 885–891.
+
+    Gales, R., Renouf, D., Noseworthy, E., 1994. Body composition of harp
+    seals. Canadian journal of zoology 72, 545–551.
     '''
     import numpy
     import pandas
@@ -92,12 +122,12 @@ def perc_bc_from_lipid(p_lipid):
     Args
     ----
     p_lipid: ndarray
-        array of percent lipid values from which to calculate body composition
+        Array of percent lipid values from which to calculate body composition
 
     Returns
     -------
     perc_comps: pandas.Dataframe
-        dataframe of percent composition values from percent lipids
+        Dataframe of percent composition values from percent lipids
     '''
     import pandas
 
@@ -115,13 +145,55 @@ def perc_bc_from_lipid(p_lipid):
 def water_from_lipid_protien(lipid, protein):
     '''Calculate total body water from total lipid and protein
 
-    Parameters from solving original Fedak & Reilly eqs.
+    Args
+    ----
+    lipid: float or ndarray
+        Mass of lipid content in animal
+    protein: float or ndarray
+        Mass of protein content in animal
+
+    Returns
+    -------
+    water: float or ndarray
+        Mass of water content in animal
+
+    References
+    ----------
+    Reilly, J.J., Fedak, M.A., 1990. Measurement of the body composition of
+    living gray seals by hydrogen isotope dilution. Journal of Applied
+    Physiology 69, 885–891.
     '''
     return -4.408148e-16+(2.828348*protein) + (1.278273e-01*lipid)
 
 
-def lip2dens(p_lipid, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994, a_dens=2.3):
-    '''Derive tissue density from lipids'''
+def lip2dens(p_lipid, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994,
+        a_dens=2.3):
+    '''Derive tissue density from lipids
+
+    Args
+    ----
+    p_lipid: float
+        Percent lipid of body composition
+    lipid_dens: float
+        Density of lipid in animal (Default 0.9007 g/cm^3)
+    prot_dens: float
+        Density of protien in animal (Default 1.34 g/cm^3)
+    water_dens: float
+        Density of water in animal (Default 0.994 g/cm^3)
+    a_dens: float
+        Density of ash in animal (Default 2.3 g/cm^3)
+
+    Returns
+    -------
+    p_comps: pandas.DataFrame
+        Composition of body tissue components by percent
+
+    References
+    ----------
+    Biuw, M., 2003. Blubber and buoyancy: monitoring the body condition of
+    free-ranging seals using simple dive characteristics. Journal of
+    Experimental Biology 206, 3405–3423. doi:10.1242/jeb.00583
+    '''
 
     p_comps = perc_bc_from_lipid(p_lipid)
 
@@ -132,16 +204,42 @@ def lip2dens(p_lipid, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994, a_den
     return p_comps
 
 
-def dens2lip(seal_dens, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994, a_dens=2.3):
-    '''density to lipid
+def dens2lip(seal_dens, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994,
+        a_dens=2.3):
+    '''Get percent composition of animal from body density
 
     Args
     ----
     seal_dens: ndarray
-        An array of seal densities (g/cm^3), must be broadcastable array. The
-        calculations only yield valid percents with densities between
-        0.888-1.123 wit other parameters left as defaults.
+        An array of seal densities (g/cm^3). The calculations only yield valid
+        percents with densities between 0.888-1.123 with other parameters left
+        as defaults.
+    lipid_dens: float
+        Density of lipid content in the animal (g/cm^3)
+    prot_dens: float
+        Density of protein content in the animal (g/cm^3)
+    water_dens: float
+        Density of water content in the animal (g/cm^3)
+    a_dens: float
+        Density of ash content in the animal (g/cm^3)
+
+    Returns
+    -------
+    p_all: pandas.DataFrame
+        Dataframe of components of body composition
+
+    References
+    ----------
+    Biuw, M., 2003. Blubber and buoyancy: monitoring the body condition of
+    free-ranging seals using simple dive characteristics. Journal of
+    Experimental Biology 206, 3405–3423. doi:10.1242/jeb.00583
     '''
+    import numpy
+
+    # Convert any passed scalars to array-like and typecast to `numpy.array`
+    if not numpy.iterable(seal_density):
+        seal_density = [seal_density]
+    seal_dens = numpy.array(seal_dens)
 
     ad_numerat =  -3.2248 * a_dens
     pd_numerat = -25.2786 * prot_dens
@@ -163,64 +261,162 @@ def dens2lip(seal_dens, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994, a_d
     return p_all
 
 
-def buoyant_force(dens, vol, sw_dens=1.028):
-    return (1000 * (sw_dens - dens)) * (1000 * vol) * 0.00981
+def buoyant_force(seal_dens, vol, sw_dens=1.028):
+    '''Cacluate the buoyant force of an object in seawater
 
+    Args
+    ----
+    seal_dens: float
+        Density of the animal (g/cm^3)
+    vol:
+        Volume of the animal (cm^3)
+    sw_dens: float
+        Density of seawater (Default 1.028 g/cm^3)
 
-def total_buoyant_force(dens_kgm3, vol_m3, sw_dens=1028.0):
-    '''Cacluate buoyant force of object in flued
-
-    Density (fluid displaced) * volume (displaced) * gravity
+    Returns
+    -------
+    Fb: float
+        Buoyant force of animal
     '''
-    g  = 9.80665                  # m/s^2
-    bf = sw_dens * vol_m3 * g     # kg/m^3 * m^3 * m/s^2 = kg*m/s^2 (N)
-    w  = -((dens_kgm3 * vol_m3) * g)
-
-    return bf + w
+    # TODO review corrections with martin
+    #g = 0.00980665 # gravity (km/s^2)
+    g = 9.80665 # gravity (m/s^2)
+    # 1000*(g/cm^3 - g/cm^3) * (1000 * cm^3) * km/s^2 != N (kg*m/s^2)
+    # should be (1e-6 * vol), and g in m/s^2
+    # kg/m^3 * (1e-6 * cm^3) * m/s^2 = N (kg*m/s^2)
+    return (1000 * (sw_dens - dens)) * (1e-6 * vol) * g
 
 
 def diff_speed(sw_dens=1.028, seal_dens=1.053, seal_length=300, seal_girth=200,
-        CD=0.09):
+        Cd=0.09):
+    '''Calculate terminal velocity of animal with a body size
+
+    Args
+    ----
+    sw_dens: float
+        Density of seawater (g/cm^3)
+    seal_dens: float
+        Density of animal (g/cm^3)
+    seal_length: float
+        Length of animal (cm)
+    seal_girth: float
+        Girth of animal (cm)
+    Cd: float
+        Drag coefficient of object in fluid, unitless
+
+    Attributes
+    ----------
+    surf: float
+        Surface area of animal (cm^2)
+    vol: float
+        Volume of animal (cm^3)
+    Fb: float
+        Buoyant force (N)
+    x: float
+        Inner term for of `Vt` calculation
+
+    Returns
+    -------
+    Vt: float
+        Terminal velocity of animal with given body dimensions (m/s).
+
+    References
+    ----------
+    Biuw, M., 2003. Blubber and buoyancy: monitoring the body condition of
+    free-ranging seals using simple dive characteristics. Journal of
+    Experimental Biology 206, 3405–3423. doi:10.1242/jeb.00583
+
+    Vogel, S., 1994. Life in Moving Fluids: The Physical Biology of Flow.
+    Princeton University Press.
+    '''
     import numpy
 
     surf, vol = surf_vol(seal_length, seal_girth)
 
-    BF = buoyant_force(seal_dens, vol, sw_dens)
+    Fb = buoyant_force(seal_dens, vol, sw_dens)
 
-    V = 2 * (BF/(CD * sw_dens * (surf*1000)))
+    x = 2 * (Fb/(Cd * sw_dens * (surf*1000)))
 
-    if V >= 0:
-        V = numpy.sqrt(V)
+    if x >= 0:
+        Vt = numpy.sqrt(x)
     else:
-        V = -numpy.sqrt(-V)
+        Vt = -numpy.sqrt(-x)
 
-    return V
+    return Vt
 
 
+# TODO en? review with Martin
 def lip2en(BM, perc_lipid):
-    '''lipids to percent total body weight'''
+    '''Percent lipid composition to percent energy stores
+
+    Args
+    ----
+    BM: float or ndarray
+        Body mass of animal
+    perc_lipid: float or ndarray
+        Percent lipids of animal's body composition
+
+    Returns
+    -------
+    en: float or ndarray
+        Total energy stores
+
+    '''
     PTBW = 71.4966 - (0.6802721*perc_lipid)
     return (40.8*BM) - (48.5*(0.01*PTBW*BM)) - 0.4
 
 
 def surf_vol(length, girth):
+    '''Calculate the surface volume of an animal from its length and girth
+
+    Args
+    ----
+    length: float or ndarray
+        Length of animal (m)
+    girth: float or ndarray
+        Girth of animal (m)
+
+    Returns
+    -------
+    surf:
+        Surface area of animal (m^2)
+    vol: float or ndarray
+        Volume of animal (m^3)
+    '''
     import numpy
 
-    ar   = 0.01 * girth / (2 * numpy.pi)
-    stll = 0.01 * length
-    cr   = stll / 2
-    e    = numpy.sqrt(1-(ar**2/cr**2))
+    a_r   = 0.01 * girth / (2 * numpy.pi)
+    stl_l = 0.01 * length
+    c_r   = stl_l / 2
+    e    = numpy.sqrt(1-(a_r**2/c_r**2))
 
-    surf = ((2*numpy.pi * ar**2) + \
-           (2 * numpy.pi * ((ar * cr)/e)) * 1/(numpy.sin(e)))
+    surf = ((2*numpy.pi * a_r**2) + \
+           (2*numpy.pi * ((a_r * c_r)/e)) * 1/(numpy.sin(e)))
 
-    vol  = (((4/3) * numpy.pi)*(ar**2) * cr)
+    vol  = (((4/3) * numpy.pi)*(a_r**2) * c_r)
 
     return surf, vol
 
 
 def calc_seal_volume(mass_kg, dens_kgm3, length=None, girth=None):
-    '''Cacluate seal volume from mass and either density or length and girth'''
+    '''Calculate an animal's volume from mass and density or length and girth
+
+    Args
+    ----
+    mass_kg: float or ndarray
+        Mass of animal (kg)
+    dens_kgm3: float or ndarray
+        Density of animal (kg/m^3)
+    length: float or None
+        Length of animal. Default `None` (m)
+    girth: float or None
+        Girth of animal. Default `None` (m)
+
+    Returns
+    -------
+    vol_kgm3: float or ndarray
+        Volume of animal (m^3)
+    '''
     if (length is not None) and (girth is not None):
         _, seal_vol = surf_vol(length, girth)
     else:
