@@ -1,5 +1,5 @@
-import plotconfig
-from plotconfig import _colors
+from . import plotconfig as _plotconfig
+from .plotconfig import _colors
 
 def plot_glide_depths(depths, data_sgl_mask):
     '''Plot depth at glides'''

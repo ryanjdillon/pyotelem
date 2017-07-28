@@ -1,12 +1,11 @@
-import matplotlib.pyplot as plt
-import seaborn
-import string
+import matplotlib.pyplot as _plt
+import seaborn as _seaborn
 
 # Use specified style (e.g. 'ggplot')
-plt.style.use('seaborn-whitegrid')
+_plt.style.use('seaborn-whitegrid')
 
 # Use specified color palette
-_colors = seaborn.color_palette()
+_colors = _seaborn.color_palette()
 
 # Global axis properties
 _linewidth = 0.5

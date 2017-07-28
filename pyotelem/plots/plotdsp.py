@@ -1,5 +1,5 @@
-import plotconfig
-from plotconfig import _colors, _linewidth
+from . import plotconfig as _plotconfig
+from .plotconfig import _colors, _linewidth
 
 # Signal
 #------------------------------------------------------------------------------

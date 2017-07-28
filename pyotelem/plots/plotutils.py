@@ -1,4 +1,4 @@
-from plotconfig import _colors, _linewidth
+from .plotconfig import _colors, _linewidth
 
 def add_alpha_labels(axes, xpos=0.03, ypos=0.95, color=None, boxstyle='square',
         facecolor='white', edgecolor='white', alpha=1.0):
