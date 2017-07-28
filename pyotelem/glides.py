@@ -45,9 +45,9 @@ def get_stroke_freq(Ax, Az, fs_a, nperseg, peak_thresh, stroke_ratio=None):
 
     import numpy
 
-    import dsp
-    import utils
-    from plots import plotdsp
+    from . import dsp
+    from . import utils
+    from .plots import plotdsp
 
     # Axes to be used for determining `stroke_frq`
     stroke_axes = [(0,'x','dorsa-ventral', Ax),
@@ -141,7 +141,7 @@ def get_stroke_glide_indices(A_g_hf, fs_a, J, t_max):
     '''
     import numpy
 
-    import dsp
+    from . import dsp
 
     # Check if input array is 1-D
     if A_g_hf.ndim > 1:
