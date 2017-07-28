@@ -22,6 +22,8 @@ from .plotconfig import _colors, _linewidth
 def plot_lf_hf(x, xlf, xhf, title=''):
     '''Plot original signal, low-pass filtered, and high-pass filtered signals
     '''
+    from . import plotutils
+
     fig, (ax1, ax2, ax3) = plt.subplots(3,1, sharex=True, sharey=True)
 
     plt.title(title)
@@ -43,7 +45,7 @@ def plot_lf_hf(x, xlf, xhf, title=''):
     ax3.legend(loc='upper right')
 
 
-    ax1, ax2, ax3 = add_alpha_labels([ax1, ax2, ax3])
+    ax1, ax2, ax3 = plotutils.add_alpha_labels([ax1, ax2, ax3])
 
     # TODO break into util function
     # Convert sample # ticks to times
