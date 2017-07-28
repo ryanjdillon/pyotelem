@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+
 from . import plotconfig as _plotconfig
 from .plotconfig import _colors, _linewidth
 
@@ -8,6 +10,8 @@ def plot_prh_des_asc(p, r, h, asc, des):
     import matplotlib.pyplot as plt
     import numpy
 
+    from . import plotutils
+
     # Convert boolean mask to indices
     des_ind = numpy.where(des)[0]
     asc_ind = numpy.where(asc)[0]
@@ -15,16 +19,16 @@ def plot_prh_des_asc(p, r, h, asc, des):
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex='col')
 
     ax1.title.set_text('Pitch')
-    ax1 = plot_noncontiguous(ax1, p, des_ind, _colors[0], 'descents')
-    ax1 = plot_noncontiguous(ax1, p, asc_ind, _colors[1], 'ascents')
+    ax1 = plotutils.plot_noncontiguous(ax1, p, des_ind, _colors[0], 'descents')
+    ax1 = plotutils.plot_noncontiguous(ax1, p, asc_ind, _colors[1], 'ascents')
 
     ax1.title.set_text('Roll')
-    ax2 = plot_noncontiguous(ax2, r, des_ind, _colors[0], 'descents')
-    ax2 = plot_noncontiguous(ax2, r, asc_ind, _colors[1], 'ascents')
+    ax2 = plotutils.plot_noncontiguous(ax2, r, des_ind, _colors[0], 'descents')
+    ax2 = plotutils.plot_noncontiguous(ax2, r, asc_ind, _colors[1], 'ascents')
 
     ax1.title.set_text('Heading')
-    ax3 = plot_noncontiguous(ax3, h, des_ind, _colors[0], 'descents')
-    ax3 = plot_noncontiguous(ax3, h, asc_ind, _colors[1], 'ascents')
+    ax3 = plotutils.plot_noncontiguous(ax3, h, des_ind, _colors[0], 'descents')
+    ax3 = plotutils.plot_noncontiguous(ax3, h, asc_ind, _colors[1], 'ascents')
 
     for ax in [ax1, ax2, ax3]:
         ax.legend(loc="upper right")

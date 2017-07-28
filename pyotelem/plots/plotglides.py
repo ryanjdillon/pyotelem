@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+
 from . import plotconfig as _plotconfig
 from .plotconfig import _colors
 
@@ -5,9 +7,11 @@ def plot_glide_depths(depths, data_sgl_mask):
     '''Plot depth at glides'''
     import numpy
 
+    from . import plotutils
+
     fig, ax = plt.subplots()
 
-    ax = plot_noncontiguous(ax, depths, numpy.where(data_sgl_mask)[0])
+    ax = plotutils.plot_noncontiguous(ax, depths, numpy.where(data_sgl_mask)[0])
     ax.invert_yaxis()
 
     plt.show()
@@ -20,14 +24,18 @@ def plot_sgls(depths, data_sgl_mask, sgls, sgl_mask, pitch_lf, roll_lf, heading_
     import matplotlib.pyplot as plt
     import numpy
 
+    from . import plotutils
+
     sgl_ind    = numpy.where(data_sgl_mask)[0]
     notsgl_ind = numpy.where(~data_sgl_mask)[0]
 
     fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 
     # Plot glides
-    ax1 = plot_noncontiguous(ax1, depths, sgl_ind, _colors[0], 'glides')
-    ax1 = plot_noncontiguous(ax1, depths, notsgl_ind, _colors[1], 'not glides')
+    ax1 = plotutils.plot_noncontiguous(ax1, depths, sgl_ind, _colors[0],
+                                      'glides')
+    ax1 = plotutils.plot_noncontiguous(ax1, depths, notsgl_ind, _colors[1],
+                                       'not glides')
 
     ax1.invert_yaxis()
     ax1.yaxis.label.set_text('depth (m)')

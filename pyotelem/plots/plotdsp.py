@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+
 from . import plotconfig as _plotconfig
 from .plotconfig import _colors, _linewidth
 

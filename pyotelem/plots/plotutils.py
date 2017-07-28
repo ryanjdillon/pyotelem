@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+
 from .plotconfig import _colors, _linewidth
 
 def add_alpha_labels(axes, xpos=0.03, ypos=0.95, color=None, boxstyle='square',
