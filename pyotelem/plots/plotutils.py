@@ -1,3 +1,4 @@
+from plotconfig import _colors, _linewidth
 
 def add_alpha_labels(axes, xpos=0.03, ypos=0.95, color=None, boxstyle='square',
         facecolor='white', edgecolor='white', alpha=1.0):
@@ -72,7 +73,7 @@ def merge_limits(axes, xlim=True, ylim=True):
     return None
 
 
-def plot_noncontiguous(ax, data, ind, color=colors[0], label=''):
+def plot_noncontiguous(ax, data, ind, color=_colors[0], label=''):
     '''Plot non-contiguous slice of data
 
     Args
@@ -103,7 +104,7 @@ def plot_noncontiguous(ax, data, ind, color=colors[0], label=''):
 
         return ind_nan, data_nan
 
-    ax.plot(*slice_with_nans(data, ind), color=color, linewidth=linewidth,
+    ax.plot(*slice_with_nans(data, ind), color=color, linewidth=_linewidth,
             label=label)
 
     return ax

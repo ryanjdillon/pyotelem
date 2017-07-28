@@ -1,3 +1,5 @@
+import plotconfig
+from plotconfig import _colors
 
 def plot_glide_depths(depths, data_sgl_mask):
     '''Plot depth at glides'''
@@ -24,8 +26,8 @@ def plot_sgls(depths, data_sgl_mask, sgls, sgl_mask, pitch_lf, roll_lf, heading_
     fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 
     # Plot glides
-    ax1 = plot_noncontiguous(ax1, depths, sgl_ind, colors[0], 'glides')
-    ax1 = plot_noncontiguous(ax1, depths, notsgl_ind, colors[1], 'not glides')
+    ax1 = plot_noncontiguous(ax1, depths, sgl_ind, _colors[0], 'glides')
+    ax1 = plot_noncontiguous(ax1, depths, notsgl_ind, _colors[1], 'not glides')
 
     ax1.invert_yaxis()
     ax1.yaxis.label.set_text('depth (m)')
@@ -33,9 +35,9 @@ def plot_sgls(depths, data_sgl_mask, sgls, sgl_mask, pitch_lf, roll_lf, heading_
     ax1.legend(loc='upper right')
 
     # Plot PRH
-    ax2.plot(range(len(depths)), numpy.rad2deg(pitch_lf), color=colors[2], label='pitch')
-    ax2.plot(range(len(depths)), numpy.rad2deg(roll_lf), color=colors[3], label='roll')
-    ax2.plot(range(len(depths)), numpy.rad2deg(heading_lf), color=colors[4],
+    ax2.plot(range(len(depths)), numpy.rad2deg(pitch_lf), color=_colors[2], label='pitch')
+    ax2.plot(range(len(depths)), numpy.rad2deg(roll_lf), color=_colors[3], label='roll')
+    ax2.plot(range(len(depths)), numpy.rad2deg(heading_lf), color=_colors[4],
                                                label='heading')
     ax2.yaxis.label.set_text('degrees')
     ax2.xaxis.label.set_text('samples')

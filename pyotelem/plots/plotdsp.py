@@ -1,3 +1,5 @@
+import plotconfig
+from plotconfig import _colors, _linewidth
 
 # Signal
 #------------------------------------------------------------------------------
@@ -9,8 +11,8 @@
 #    r = plt.plot(f, S, 'r')
 #    #legend([b, r], 'HPF acc x axis (surge)', 'HPF acc z axis (heave)')
 #
-#    plt.plot(f[peak_idx], S[peak_idx], 'o', markersize=10, linewidth=2)
-#    plt.plot([f[idx_f], f[idx_f]],[min(S[:]), min_f],'--', linewidth=2)
+#    plt.plot(f[peak_idx], S[peak_idx], 'o', markersize=10, _linewidth=2)
+#    plt.plot([f[idx_f], f[idx_f]],[min(S[:]), min_f],'--', _linewidth=2)
 #    # ['f = '.format(float(round(f[idx_f]*100)/100))],
 #
 #    return None
@@ -23,18 +25,18 @@ def plot_lf_hf(x, xlf, xhf, title=''):
     plt.title(title)
 
     #ax1.title.set_text('All freqencies')
-    ax1.plot(range(len(x)), x, color=colors[0], linewidth=linewidth,
+    ax1.plot(range(len(x)), x, color=_colors[0], linewidth=_linewidth,
              label='original')
     ax1.legend(loc='upper right')
 
     #ax2.title.set_text('Low-pass filtered')
-    ax2.plot(range(len(xlf)), xlf, color=colors[1], linewidth=linewidth,
+    ax2.plot(range(len(xlf)), xlf, color=_colors[1], linewidth=_linewidth,
              label='low-pass')
     ax2.legend(loc='upper right')
     ax2.set_ylabel('Frequency (Hz)')
 
     #ax3.title.set_text('High-pass filtered')
-    ax3.plot(range(len(xhf)), xhf, color=colors[2], linewidth=linewidth,
+    ax3.plot(range(len(xhf)), xhf, color=_colors[2], linewidth=_linewidth,
              label='high-pass')
     ax3.legend(loc='upper right')
 
@@ -65,13 +67,13 @@ def plot_acc_pry_depth(A_g_lf, A_g_hf, pry_deg, depths, glide_mask=None):
     fig, (ax1, ax2, ax3) = plt.subplots(3,1, sharex=True)
 
     ax1.title.set_text('acceleromter')
-    ax1.plot(range(len(A_g_lf)), A_g_lf, color=colors[0])
+    ax1.plot(range(len(A_g_lf)), A_g_lf, color=_colors[0])
 
     ax1.title.set_text('PRH')
-    ax2.plot(range(len(pry_deg)), pry_deg, color=colors[1])
+    ax2.plot(range(len(pry_deg)), pry_deg, color=_colors[1])
 
     ax3.title.set_text('depth')
-    ax3.plot(range(len(depths)), depths, color=colors[2])
+    ax3.plot(range(len(depths)), depths, color=_colors[2])
     ax3.invert_yaxis()
 
     if glide_mask is not None:
@@ -86,7 +88,7 @@ def plot_acc_pry_depth(A_g_lf, A_g_hf, pry_deg, depths, glide_mask=None):
 
 def plot_welch_peaks(f, S, peak_loc=None, title=''):
     '''Plot welch PSD with peaks as scatter points'''
-    plt.plot(f, S, linewidth=linewidth)
+    plt.plot(f, S, linewidth=_linewidth)
     plt.title(title)
     plt.xlabel('Fequency (Hz)')
     plt.ylabel('"Power" (g**2 Hz**−1)')
@@ -104,7 +106,7 @@ def plot_fft(f, S, dt):
     import numpy
 
     xf = numpy.linspace(0.0, 1/(2.0*dt), N/2)
-    plt.plot(xf, 2.0/N * numpy.abs(S[:N//2]), linewidth=linewidth)
+    plt.plot(xf, 2.0/N * numpy.abs(S[:N//2]), linewidth=_linewidth)
     plt.show()
 
     return None
@@ -173,8 +175,8 @@ def plot_data_filter(data, data_f, b, a, cutoff, fs):
     ax2.legend()
 
     # Demonstrate the use of the filter.
-    ax2.plot(t, data, linewidth=linewidth, label='data')
-    ax2.plot(t, data_f, linewidth=linewidth, label='filtered data')
+    ax2.plot(t, data, linewidth=_linewidth, label='data')
+    ax2.plot(t, data_f, linewidth=_linewidth, label='filtered data')
     ax2.set_xlabel('Time [sec]')
     ax2.legend()
 

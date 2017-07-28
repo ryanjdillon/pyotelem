@@ -11,3 +11,9 @@ abc = string.ascii_uppercase
 
 # Global axis properties
 linewidth = 0.5
+
+from . import plotdives
+from . import plotdsp
+from . import plotdynamics
+from . import plotglides
+from . import plotutils

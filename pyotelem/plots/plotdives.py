@@ -1,3 +1,5 @@
+import plotconfig
+from plotconfig import _colors, _linewidth
 
 # ACCELEROMETER AND DIVES
 #------------------------------------------------------------------------------
@@ -53,8 +55,8 @@ def plot_dives_pitch(depths, dive_mask, des, asc, pitch, pitch_lf):
     asc_ind = numpy.where(dive_mask & asc)[0]
 
     ax1.title.set_text('Dive descents and ascents')
-    ax1 = plot_noncontiguous(ax1, depths, des_ind, colors[0], 'descents')
-    ax1 = plot_noncontiguous(ax1, depths, asc_ind, colors[1], 'ascents')
+    ax1 = plot_noncontiguous(ax1, depths, des_ind, _colors[0], 'descents')
+    ax1 = plot_noncontiguous(ax1, depths, asc_ind, _colors[1], 'ascents')
 
     ax1.legend(loc='upper right')
     ax1.invert_yaxis()
@@ -63,10 +65,10 @@ def plot_dives_pitch(depths, dive_mask, des, asc, pitch, pitch_lf):
 
 
     ax2.title.set_text('Pitch and Low-pass filtered pitch')
-    ax2.plot(range(len(pitch)), pitch, color=colors[2], linewidth=linewidth,
+    ax2.plot(range(len(pitch)), pitch, color=_colors[2], linewidth=_linewidth,
             label='pitch')
-    ax2.plot(range(len(pitch_lf)), pitch_lf, color=colors[3],
-            linewidth=linewidth, label='pitch filtered')
+    ax2.plot(range(len(pitch_lf)), pitch_lf, color=_colors[3],
+            linewidth=_linewidth, label='pitch filtered')
     ax2.legend(loc='upper right')
     ax2.yaxis.label.set_text('Radians')
     ax2.yaxis.label.set_text('Samples')
@@ -88,8 +90,8 @@ def plot_depth_descent_ascent(depths, dive_mask, des, asc):
     fig, ax1 = plt.subplots()
 
     ax1.title.set_text('Dive descents and ascents')
-    ax1 = plot_noncontiguous(ax1, depths, des_ind, colors[0], 'descents')
-    ax1 = plot_noncontiguous(ax1, depths, asc_ind, colors[1], 'ascents')
+    ax1 = plot_noncontiguous(ax1, depths, des_ind, _colors[0], 'descents')
+    ax1 = plot_noncontiguous(ax1, depths, asc_ind, _colors[1], 'ascents')
 
     ax1.legend(loc='upper right')
     ax1.invert_yaxis()
@@ -123,15 +125,15 @@ def plot_triaxial_depths_speed(data):
 
     for label, y, axes in cols:
         axes[0].title.set_text('Accelerometer {}-axis'.format(label))
-        axes[0].plot(range(len(y)), y, color=colors[0],
-                     linewidth=linewidth, label='x')
+        axes[0].plot(range(len(y)), y, color=_colors[0],
+                     linewidth=_linewidth, label='x')
 
         axes[1].title.set_text('Depths')
-        axes[1] = plot_noncontiguous(axes[1], data['depth'], all_ind, color=colors[1])
+        axes[1] = plot_noncontiguous(axes[1], data['depth'], all_ind, color=_colors[1])
         axes[1].invert_yaxis()
 
         axes[2] = plot_noncontiguous(axes[2], data['propeller'], all_ind,
-                color=colors[2], label='propeller')
+                color=_colors[2], label='propeller')
 
     plt.show()
 
@@ -157,13 +159,13 @@ def plot_triaxial_descent_ascent(Ax, Az, des, asc):
 
     for label, data, axes in cols:
         axes[0].title.set_text('Whole {}'.format(label))
-        axes[0].plot(range(len(data)), data, color=colors[0],
-                     linewidth=linewidth, label='{}'.format(label))
+        axes[0].plot(range(len(data)), data, color=_colors[0],
+                     linewidth=_linewidth, label='{}'.format(label))
 
         axes[1].title.set_text('Descents & Ascents {}'.format(label))
-        axes[1] = plot_noncontiguous(axes[1], data, des_ind, color=colors[1],
+        axes[1] = plot_noncontiguous(axes[1], data, des_ind, color=_colors[1],
                                      label='descents')
-        axes[1] = plot_noncontiguous(axes[1], data, asc_ind, color=colors[2],
+        axes[1] = plot_noncontiguous(axes[1], data, asc_ind, color=_colors[2],
                                      label='ascents')
         axes[1].legend(loc='upper right')
 
