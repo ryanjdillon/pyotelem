@@ -32,7 +32,7 @@ def finddives2(depths, min_dive_thresh=10):
     import numpy
     import pandas
 
-    import utils
+    from . import utils
 
     # Get start and stop indices for each dive above `min_dive_thresh`
     condition = depths > min_dive_thresh
@@ -140,7 +140,7 @@ def rm_incomplete_des_asc(des_mask, asc_mask):
     asc_mask: ndarray
         Boolean mask of ascents with erroneous regions removed
     '''
-    import utils
+    from . import utils
 
     # Get start/stop indices for descents and ascents
     des_start, des_stop = utils.contiguous_regions(des_mask)
@@ -174,7 +174,7 @@ def get_bottom(depths, des_mask, asc_mask):
     '''
     import numpy
 
-    import utils
+    from . import utils
 
     # Get start/stop indices for descents and ascents
     des_start, des_stop = utils.contiguous_regions(des_mask)
