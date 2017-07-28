@@ -1,5 +1,5 @@
 
-def PRH(ax, ay, az):
+def prh(ax, ay, az):
     '''Calculate the pitch, roll and heading for triaxial movement signalsi
 
     Args
@@ -21,14 +21,14 @@ def PRH(ax, ay, az):
         Pitch angle in radians
     '''
 
-    pitch = pitch(ax, ay, az)
-    roll  = roll(ax, ay, az)
-    yaw   = yaw(ax, ay, az)
+    p = pitch(ax, ay, az)
+    r = roll(ax, ay, az)
+    y = yaw(ax, ay, az)
 
     #from dtag_toolbox_python.dtag2 import a2pr
     #pitch, roll, A_norm = a2pr.a2pr(A_g)
 
-    return pitch, roll, yaw
+    return p, r, y
 
 
 def pitch(ax, ay, az):
