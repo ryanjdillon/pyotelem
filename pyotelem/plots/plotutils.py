@@ -10,6 +10,11 @@ def add_alpha_labels(axes, xpos=0.03, ypos=0.95, color=None, boxstyle='square',
     '''
     import seaborn
     import string
+    import numpy
+
+    if not numpy.iterable(xpos):
+        xpos = [xpos,]*len(axes)
+        ypos = [ypos,]*len(axes)
 
     if (len(xpos) > 1) or (len(ypos) > 1):
         try:

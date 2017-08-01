@@ -71,8 +71,8 @@ def plot_sgls(depths, data_sgl_mask, sgls, sgl_mask, pitch_lf, roll_lf, heading_
         ax1.annotate(txt, (x[i],y[i]))
 
     # Plot shaded areas
-    ax1 = plot_shade_mask(ax1, ~data_sgl_mask)
-    ax2 = plot_shade_mask(ax2, ~data_sgl_mask)
+    ax1 = plotutils.plot_shade_mask(ax1, ~data_sgl_mask)
+    ax2 = plotutils.plot_shade_mask(ax2, ~data_sgl_mask)
 
     plt.show()
 

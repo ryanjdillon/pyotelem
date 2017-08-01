@@ -45,7 +45,9 @@ def plot_lf_hf(x, xlf, xhf, title=''):
     ax3.legend(loc='upper right')
 
 
-    ax1, ax2, ax3 = plotutils.add_alpha_labels([ax1, ax2, ax3])
+    ax1, ax2, ax3 = plotutils.add_alpha_labels([ax1, ax2, ax3], color='black',
+                                               facecolor='none',
+                                               edgecolor='none')
 
     # TODO break into util function
     # Convert sample # ticks to times

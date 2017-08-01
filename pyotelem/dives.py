@@ -104,7 +104,8 @@ def get_des_asc2(depths, dive_mask, pitch, cutoff, fs, order=5):
         Boolean mask of ascents in the depth data
     '''
     import numpy
-    import dsp
+
+    from . import dsp
 
     asc_mask = numpy.zeros(len(depths), dtype=bool)
     des_mask = numpy.zeros(len(depths), dtype=bool)

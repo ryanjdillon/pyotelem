@@ -1,233 +1,208 @@
 
-def estimate_seawater_density(depths, depth_ctd, temp_ctd, sali_ctd):
-    '''Estimate seawater density
-
-    depths: ndarray
-        Depths at which seawater density is to be estimated
-    depth_ctd:
-        Depths of CTD samples
-    temp_ctd:
-        CTD temperature values
-    sali_ctd:
-        CTD salinity values
-
-    Returns
-    -------
-    tsd: pandas.DataFrame
-        Dataframe with temperature, salinity and depth at regular
-        whole integer depth or pressure intervals.
-    densities: ndarray
-        Seawater density values for each depth in `depths`
-    '''
-    import utils_sewater
-
-    tsd = SWdensityFromCTD(depth_ctd, temp_ctd, sali_ctd)
-
-    # TODO handle case where depth greater than CTD max, return last value/NaN
-    densities = tsd['density'][depths.round().astype(int)]
-
-    return tsd, densities
-
-
-def SWdensityFromCTD(depth_ctd, temp_ctd, sali_ctd, duplicates='last'):
+def SWdensityFromCTD(SA, t, p, potential=False):
     '''Calculate seawater density at CTD depth
 
     Args
     ----
-    depth_ctd: ndarray
-        CTD depths in meters or pressure
-    temp_ctd: ndarray
-        Temperature values associated with each depth/pressure
-    sali_ctd: ndarray
-        Salinity values associated with each depth/pressure
-    duplicates: str
-        String indicating method to use when duplicate depths or pressures are
-        found in `depth_ctd`. 'first' will use the temperature and salinity
-        values from the first duplicate, and 'last' will use the values from
-        the last duplicate (Default 'last').
+    SA: ndarray
+        Absolute salinity, g/kg
+    t: ndarray
+        In-situ temperature (ITS-90), degrees C
+    p: ndarray
+        Sea pressure (absolute pressure minus 10.1325 dbar), dbar
 
     Returns
     -------
-    tsd: pandas.DataFrame
-        Dataframe with temperature, salinity and depth at regular
-        whole integer depth or pressure intervals.
+    rho: ndarray
+        Seawater density, in-situ or potential, kg/m^3
     '''
     import numpy
-    import pandas
+    import gsw
 
-    import utils
+    CT = gsw.CT_from_t(SA, t, p)
 
-    # Create empty data frame incremented by whole meters to max CTD depth
-    columns = ['temperature', 'salinity', 'density']
-    n_samples = numpy.ceil(depth_ctd.max()).astype(int)
-    tsd = pandas.DataFrame(index=range(n_samples), columns=columns)
+    # Calculate potential density (0 bar) instead of in-situ
+    if potential:
+        p = numpy.zeros(len(SA))
 
-    # Assign temperature and salinity for each rounded ctd depth
-    depths = depth_ctd.round().astype(int)
-    for d in numpy.unique(depths):
-        # Use last or first occurance of depth/value pairs
-        if duplicates == 'last':
-            idx = numpy.where(depths == d)[0][-1]
-        elif duplicates == 'first':
-            idx = numpy.where(depths == d)[0][0]
-
-        # Fill temp and salinity at measured depths, rounded to whole meter
-        tsd['temperature'][d] = temp_ctd[idx]
-        tsd['salinity'][d]    = sali_ctd[idx]
-
-    # Linearly interpolate temperature and salinity measurements
-    tsd = tsd.astype(float)
-    tsd.interpolate('linear', inplace=True)
-
-    # Cacluate seawater density
-    tsd['density'] = sw_dens0(tsd['salinity'][:], tsd['temperature'][:])
-
-    return tsd
+    return gsw.rho(SA, CT, p)
 
 
-def sw_dens0(S, T):
-    '''Density of Sea Water at atmospheric pressure
-
-    Using UNESCO 1983 (Eqn 13, p.17) (EOS 1980) polynomial.
+def interp_S_t(S, t, z, z_new, p=None):
+    ''' Linearly interpolate CTD S, t, and p (optional) from `z` to `z_new`.
 
     Args
     ----
-    S: salinity    [psu      (PSS-78)]
-    T: temperature [degree C (ITS-90)]
+    S: ndarray
+        CTD salinities
+    t: ndarray
+        CTD temperatures
+    z: ndarray
+        CTD Depths, must be a strictly increasing or decreasing 1-D array, and
+        its length must match the last dimension of `S` and `t`.
+    z_new: ndarray
+        Depth to interpolate `S`, `t`, and `p` to. May be a scalar or a sequence.
+    p: ndarray (optional)
+        CTD pressures
 
     Returns
     -------
-    dens0: density  [kg/m^3] of salt water with properties S,T,
-    P:     0 (0 db gauge pressure)
+    S_i: ndarray
+        Interpolated salinities
+    t_i: ndarray
+        Interpolated temperatures
+    p_i: ndarray
+        Interpolated pressures. `None` returned if `p` not passed.
 
-    Authors
-    -------
-    Phil Morgan 92-11-05
-    Lindsay Pender (Lindsay.Pender@csiro.au)
+    Note
+    ----
+    It is assumed, but not checked, that `S`, `t`, and `z` are all plain
+    ndarrays, not masked arrays or other sequences.
 
-    References
-    ----------
-    Unesco 1983. Algorithms for computation of fundamental properties of
-    seawater, 1983. _Unesco Tech. Pap. in Mar. Sci._, No. 44, 53 pp.
+    Out-of-range values of `z_new`, and `nan` in `S` and `t`, yield
+    corresponding `numpy.nan` in the output.
 
-    Millero, F.J. and  Poisson, A.
-    International one-atmosphere equation of state of seawater.
-    Deep-Sea Res. 1981. Vol28A(6) pp625-629.
+    This method is adapted from the the legacy `python-gsw` package, where
+    their basic algorithm is from scipy.interpolate.
     '''
     import numpy
 
-    if S.shape != T.shape:
-        raise SystemError('sw_dens0.py: S,T inputs must have the same '
-                          'dimensions')
-    T68 = T * 1.00024
+    # Create array-like query depth if single value passed
+    isscalar = False
+    if not numpy.iterable(z_new):
+        isscalar = True
+        z_new = [z_new]
 
-    # UNESCO 1983
+    # Type cast to numpy array
+    z_new = numpy.asarray(z_new)
 
-    # DEFINE CONSTANTS
-    b0 =  0.824493
-    b1 = -0.0040899
-    b2 =  7.6438e-05
-    b3 = -8.2467e-07
-    b4 =  5.3875e-09
-    c0 = -0.00572466
-    c1 =  0.00010227
-    c2 = -1.6546e-06
-    d0 =  0.00048314
+    # Determine if depth direction is inverted
+    inverted = False
+    if z[1] - z[0] < 0:
+        inverted = True
+        z = z[::-1]
+        S = S[..., ::-1]
+        t = t[..., ::-1]
+        if p is not None:
+            p = p[..., ::-1]
 
-    dens = sw_smow(T) + \
-           ((b0 + ((b1 + ((b2 + ((b3 + (b4 * T68)) * T68)) * T68)) * T68)) * S) + \
-           (((c0 + ((c1 + (c2 * T68)) * T68)) * S) * numpy.sqrt(S)) + \
-           (d0 * S**2)
+    # Ensure query depths are ordered
+    if (numpy.diff(z) <= 0).any():
+        raise ValueError("z must be strictly increasing or decreasing")
 
-    return dens
+    # Find z indices where z_new elements can insert with maintained order
+    hi = numpy.searchsorted(z, z_new)
+
+    # Replaces indices below/above with 1 or len(z)-1
+    hi = hi.clip(1, len(z) - 1).astype(int)
+    lo = hi - 1
+
+    # Get CTD depths above and below query depths
+    z_lo = z[lo]
+    z_hi = z[hi]
+    S_lo = S[lo]
+    S_hi = S[hi]
+    t_lo = t[lo]
+    t_hi = t[hi]
+
+    # Calculate distance ratio between CTD depths
+    z_ratio = (z_new - z_lo) / (z_hi - z_lo)
+
+    # Interpolate salinity and temperature with delta and ratio
+    S_i = S_lo + (S_hi - S_lo) * z_ratio
+    t_i = t_lo + (t_hi - t_lo) * z_ratio
+    if p is None:
+        p_i = None
+    else:
+        p_i = p[lo] + (p[hi] - p[lo]) * z_ratio
+
+    # Invert interp values if passed depths inverted
+    if inverted:
+        S_i = S_i[..., ::-1]
+        t_i = t_i[..., ::-1]
+        if p is not None:
+            p_i = p_i[..., ::-1]
+
+    # Replace values not within CTD sample range with `nan`s
+    outside = (z_new < z.min()) | (z_new > z.max())
+    if numpy.any(outside):
+        S_i[..., outside] = numpy.nan
+        t_i[..., outside] = numpy.nan
+        if p is not None:
+            p_i[..., outside] = numpy.nan
+
+    # Return single interp values if single query depth passed
+    if isscalar:
+        S_i = S_i[0]
+        t_i = t_i[0]
+        if p is not None:
+            p_i = p_i[0]
+
+    return S_i, t_i, p_i
 
 
-def sw_smow(T):
-    '''Denisty of Standard Mean Ocean Water (Pure Water) using EOS 1980.
-
-    Args
-    ----
-    T: temperature [degree C (ITS-90)]
-
-    Returns
-    -------
-    dens = density  [kg/m^3]
-
-    Authors
-    -------
-    Phil Morgan 92-11-05
-    Lindsay Pender (Lindsay.Pender@csiro.au)
-
-    References
-    ----------
-    Unesco 1983. Algorithms for computation of fundamental properties of
-    seawater, 1983. _Unesco Tech. Pap. in Mar. Sci._, No. 44, 53 pp.
-    UNESCO 1983 p17  Eqn(14)
-
-    Millero, F.J & Poisson, A.
-    INternational one-atmosphere equation of state for seawater.
-    Deep-Sea Research Vol28A No.6. 1981 625-629.    Eqn (6)
-    '''
-
-    # DEFINE CONSTANTS
-    a0 = 999.842594
-    a1 =   6.793952e-2
-    a2 =  -9.095290e-3
-    a3 =   1.001685e-4
-    a4 =  -1.120083e-6
-    a5 =   6.536332e-9
-
-    T68 = T * 1.00024
-
-    dens = a0 + \
-           ((a1 + ((a2 + ((a3 + ((a4 + (a5 * T68)) * T68)) * T68)) * T68)) * T68)
-
-    return dens
-
-
-#def SWdensityFromCTD(depth_ctd, temp_ctd, sali_ctd, depths):
-#    '''Calculate seawater density at CTD depth
+#def estimate_seawater_density(depths, SA, t, p, duplicates='last'):
+#    '''Estimate seawater density
 #
-#    Translated from Dtag toolbox
+#    depths: ndarray
+#        Depths at which seawater density is to be estimated
+#    depth_ctd:
+#        Depths of CTD samples
+#    temp_ctd:
+#        CTD temperature values
+#    sali_ctd:
+#        CTD salinity values
+#    duplicates: str
+#        String indicating method to use when duplicate depths or pressures are
+#        found in `depth_ctd`. 'first' will use the temperature and salinity
+#        values from the first duplicate, and 'last' will use the values from
+#        the last duplicate (Default 'last').
+#
+#    Returns
+#    -------
+#    tsd: pandas.DataFrame
+#        Dataframe with temperature, salinity and depth at regular
+#        whole integer depth or pressure intervals.
 #    '''
-#    import numpy
+#    import pandas
 #
-#    import utils_dtag
+#    import utils
 #
-#    new_depth = range(max(depth_ctd))
+#    # Create empty data frame incremented by whole meters to max CTD depth
+#    columns = ['temperature', 'salinity', 'density']
+#    n_samples = numpy.ceil(depth_ctd.max()).astype(int)
 #
-#    temp = numpy.zeros(len(new_depth))
-#    sali = numpy.zeros(len(new_depth))
-#    temp[:] = numpy.nan
-#    sali[:] = numpy.nan
+#    #tsd = pandas.DataFrame(index=range(n_samples), columns=columns)
+#    sa_i = numpy.zeros(n_samples, dtype=float)
+#    t_i = numpy.zeros(n_samples, dtype=float)
+#    p_i = numpy.zeros(n_samples, dtype=float)
 #
-#    temp[round(depth_ctd)] = temp_ctd
-#    sali[round(depth_ctd)] = sali_ctd
+#    # Assign temperature and salinity for each rounded ctd depth
+#    depths = depth_ctd.round().astype(int)
+#    for d in numpy.unique(depths):
+#        # Use last or first occurance of depth/value pairs
+#        if duplicates == 'last':
+#            idx = numpy.where(depths == d)[0][-1]
+#        elif duplicates == 'first':
+#            idx = numpy.where(depths == d)[0][0]
 #
-#    # linear interpret between the NaNs
-#    temp = utils_dtag.fixgaps(temp)
-#    sali = utils_dtag.fixgaps(sali)
-#    dens = sw_dens0(sali, temp)
+#        # Fill temp and salinity at measured depths, rounded to whole meter
+#        #tsd['temperature'][d] = temp_ctd[idx]
+#        #tsd['salinity'][d]    = sali_ctd[idx]
+#        sa_i[d] = sali_ctd[idx]
+#        t_i[d] = temp_ctd[idx]
+#        p_i[d] = pres_ctd[idx]
 #
-#    ## TODO remove?
-#    #plt.plot(dens, new_depth)
-#    #ylabel('Depth (m)')
-#    #xlabel('Density (kg/m^3)')
+#    # Linearly interpolate temperature and salinity measurements
+#    #tsd = tsd.astype(float)
+#    tsd.interpolate('linear', inplace=True)
+#    for a in [si, t_i, p_i]:
+#        scipy.
 #
-#    if max(depths[:, 6]) > max(depth_ctd):
-#        new_depth2 = range(0, max(depths[:, 6]))
-#        n_depth_diff = len(new_depth2)-len(new_depth)
-#        sali = numpy.hstack([sali, sali[-1] * numpy.ones(n_depth_diff)])
-#        temp = numpy.hstack([temp, temp[-1] * numpy.ones(n_depth_diff)])
+#    tsd = SWdensityFromCTD(depth_ctd, temp_ctd, sali_ctd)
 #
-#        dens = sw_dens0(sali, temp)
+#    # TODO handle case where depth greater than CTD max, return last value/NaN
+#    densities = tsd['density'][depths.round().astype(int)]
 #
-#        ## TODO remove?
-#        #plt.plot(dens, new_depth2)
-#        #ylabel('Depth (m)')
-#        #xlabel('Density (kg/m^3)')
-#
-#    depth_CTD = numpy.copy(new_depth2)
-#    SWdensity = numpy.copy(dens)
-#
-#    return SWdensity, depth_CTD
+#    return tsd, densities
+
