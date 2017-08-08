@@ -237,8 +237,8 @@ def dens2lip(seal_dens, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994,
     import numpy
 
     # Convert any passed scalars to array-like and typecast to `numpy.array`
-    if not numpy.iterable(seal_density):
-        seal_density = [seal_density]
+    if not numpy.iterable(seal_dens):
+        seal_density = [seal_dens]
     seal_dens = numpy.array(seal_dens)
 
     ad_numerat =  -3.2248 * a_dens
