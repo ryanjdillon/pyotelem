@@ -204,13 +204,13 @@ def lip2dens(p_lipid, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994,
     return p_comps
 
 
-def dens2lip(seal_dens, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994,
+def dens2lip(dens_gcm3, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994,
         a_dens=2.3):
     '''Get percent composition of animal from body density
 
     Args
     ----
-    seal_dens: ndarray
+    dens_gcm3: ndarray
         An array of seal densities (g/cm^3). The calculations only yield valid
         percents with densities between 0.888-1.123 with other parameters left
         as defaults.
@@ -237,9 +237,10 @@ def dens2lip(seal_dens, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994,
     import numpy
 
     # Convert any passed scalars to array-like and typecast to `numpy.array`
-    if not numpy.iterable(seal_dens):
-        seal_density = [seal_dens]
-    seal_dens = numpy.array(seal_dens)
+    if not numpy.iterable(dens_gcm3):
+        dens_gcm3 = [dens_gcm3]
+    # Ensure numpy array type
+    dens_gcm3 = numpy.array(dens_gcm3)
 
     ad_numerat =  -3.2248 * a_dens
     pd_numerat = -25.2786 * prot_dens
@@ -249,24 +250,24 @@ def dens2lip(seal_dens, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994,
     pd_denom = -0.2857 * prot_dens
     wd_denom = -0.6803 * water_dens
 
-    p_lipid = ((100 * seal_dens) + ad_numerat + pd_numerat + wd_numerat) / \
+    p_lipid = ((100 * dens_gcm3) + ad_numerat + pd_numerat + wd_numerat) / \
               (lipid_dens + ad_denom + pd_denom + wd_denom)
 
     p_all = lip2dens(p_lipid)
     p_all = p_all[['perc_water', 'perc_protien', 'perc_ash']]
 
-    p_all['density'] = seal_dens
+    p_all['density'] = dens_gcm3
     p_all['perc_lipid'] = p_lipid
 
     return p_all
 
 
-def buoyant_force(seal_dens, vol, sw_dens=1.028):
+def buoyant_force(dens_gcm3, vol, sw_dens=1.028):
     '''Cacluate the buoyant force of an object in seawater
 
     Args
     ----
-    seal_dens: float
+    dens_gcm3: float
         Density of the animal (g/cm^3)
     vol:
         Volume of the animal (cm^3)
@@ -287,7 +288,7 @@ def buoyant_force(seal_dens, vol, sw_dens=1.028):
     return (1000 * (sw_dens - dens)) * (1e-6 * vol) * g
 
 
-def diff_speed(sw_dens=1.028, seal_dens=1.053, seal_length=300, seal_girth=200,
+def diff_speed(sw_dens=1.028, dens_gcm3=1.053, seal_length=300, seal_girth=200,
         Cd=0.09):
     '''Calculate terminal velocity of animal with a body size
 
@@ -295,7 +296,7 @@ def diff_speed(sw_dens=1.028, seal_dens=1.053, seal_length=300, seal_girth=200,
     ----
     sw_dens: float
         Density of seawater (g/cm^3)
-    seal_dens: float
+    dens_gcm3: float
         Density of animal (g/cm^3)
     seal_length: float
         Length of animal (cm)
@@ -333,7 +334,7 @@ def diff_speed(sw_dens=1.028, seal_dens=1.053, seal_length=300, seal_girth=200,
 
     surf, vol = surf_vol(seal_length, seal_girth)
 
-    Fb = buoyant_force(seal_dens, vol, sw_dens)
+    Fb = buoyant_force(dens_gcm3, vol, sw_dens)
 
     x = 2 * (Fb/(Cd * sw_dens * (surf*1000)))
 
