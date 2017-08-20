@@ -25,7 +25,6 @@ def get_stroke_freq(Ax, Az, fs_a, nperseg, peak_thresh, stroke_ratio=None):
     stroke_frq: float
         frequency of dominant wavelength in signal
     stroke_ratio: float
-        
 
     Notes
     -----
