@@ -127,8 +127,6 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
     ax1.set_ylabel('Depth ($m$)')
     ymin = depths.min() - (depths.max()*0.01)
     ymax = depths.max() + (depths.max()*0.01)
-    print('depths', depths.min(), depths.max())
-    print('ylim', ymin, ymax)
     ax1.set_ylim((ymin, ymax))
     ax1.invert_yaxis()
     ax1.get_yaxis().set_label_coords(-0.06,0.5)
