@@ -1,6 +1,55 @@
 import matplotlib.pyplot as plt
 
-from .plotconfig import _colors, _linewidth
+
+def roundup(x, order):
+    return x if x % 10**order == 0 else x + 10**order - x % 10**order
+
+
+def magnitude(x):
+    import math
+    return int(math.floor(math.log10(x)))
+
+
+def hourminsec(n_seconds):
+    '''Generate a string of hours and minutes from total number of seconds'''
+
+    hours, remainder = divmod(n_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    return abs(hours), abs(minutes), abs(seconds)
+
+
+def nsamples_to_hourminsec(x, pos):
+    '''Convert axes labels to experiment duration in hours/minutes/seconds
+
+    Matplotlib FuncFormatter function
+    https://matplotlib.org/examples/pylab_examples/custom_ticker1.html
+    '''
+
+    h, m, s = hourminsec(x/16.0)
+    return '{:.0f}h {:2.0f}′{:2.1f}″'.format(h, m, s)
+
+
+def nsamples_to_hourmin(x, pos):
+    '''Convert axes labels to experiment duration in hours/minutes
+
+    Matplotlib FuncFormatter function
+    https://matplotlib.org/examples/pylab_examples/custom_ticker1.html
+    '''
+
+    h, m, s = hourminsec(x/16.0)
+    return '{:.0f}h {:2.0f}′'.format(h, m+round(s))
+
+
+def nsamples_to_minsec(x, pos):
+    '''Convert axes labels to experiment duration in minutes/seconds
+
+    Matplotlib FuncFormatter function
+    https://matplotlib.org/examples/pylab_examples/custom_ticker1.html
+    '''
+    h, m, s = hourminsec(x/16.0)
+    return '{:2.0f}′{:2.1f}″'.format(m+(h*60), s)
+
 
 def add_alpha_labels(axes, xpos=0.03, ypos=0.95, color=None, boxstyle='square',
         facecolor='white', edgecolor='white', alpha=1.0):
@@ -80,7 +129,8 @@ def merge_limits(axes, xlim=True, ylim=True):
     return None
 
 
-def plot_noncontiguous(ax, data, ind, color=_colors[0], label=''):
+def plot_noncontiguous(ax, data, ind, color='black', label='', offset=0,
+        linewidth=0.5):
     '''Plot non-contiguous slice of data
 
     Args
@@ -93,7 +143,7 @@ def plot_noncontiguous(ax, data, ind, color=_colors[0], label=''):
     ax: matplotlib axes object
     '''
 
-    def slice_with_nans(data, ind):
+    def slice_with_nans(ind, data, offset):
         '''Insert nans in indices and data where indices non-contiguous'''
         import copy
         import numpy
@@ -102,24 +152,24 @@ def plot_noncontiguous(ax, data, ind, color=_colors[0], label=''):
         ind_nan[:]       = numpy.nan
 
         # prevent ind from overwrite with deepcopy
-        ind_nan[ind]     = copy.deepcopy(ind)
-        ind_nan          = ind_nan[ind[0]:ind[-1]]
+        ind_nan[ind-offset] = copy.deepcopy(ind)
+        #ind_nan             = ind_nan[ind[0]-offset:ind[-1]-offset]
 
         # prevent data from overwrite with deepcopy
-        data_nan = numpy.copy(data[ind[0]:ind[-1]])
+        data_nan = copy.deepcopy(data)
         data_nan[numpy.isnan(ind_nan)] = numpy.nan
 
         return ind_nan, data_nan
 
-    ax.plot(*slice_with_nans(data, ind), color=color, linewidth=_linewidth,
-            label=label)
+    x, y = slice_with_nans(ind, data, offset)
+    ax.plot(x, y, color=color, linewidth=linewidth, label=label)
 
     return ax
 
 
-def plot_shade_mask(ax, mask):
+def plot_shade_mask(ax, ind, mask, facecolor='gray'):
     '''Shade across x values where boolean mask is `True`'''
     ymin, ymax = ax.get_ylim()
-    ax.fill_between(range(len(mask)), ymin, ymax, where=mask,
-                    facecolor='gray', alpha=0.5)
+    ax.fill_between(ind, ymin, ymax, where=mask,
+                    facecolor=facecolor, alpha=0.5)
     return ax

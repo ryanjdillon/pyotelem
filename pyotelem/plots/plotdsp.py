@@ -83,9 +83,10 @@ def plot_acc_pry_depth(A_g_lf, A_g_hf, pry_deg, depths, glide_mask=None):
     ax3.invert_yaxis()
 
     if glide_mask is not None:
-        ax1 = plot_shade_mask(ax1, glide_mask)
-        ax2 = plot_shade_mask(ax2, glide_mask)
-        ax3 = plot_shade_mask(ax3, glide_mask)
+        ind = range(len(glide_mask))
+        ax1 = plot_shade_mask(ax1, ind, glide_mask)
+        ax2 = plot_shade_mask(ax2, ind, glide_mask)
+        ax3 = plot_shade_mask(ax3, ind, glide_mask)
 
     plt.show()
 
