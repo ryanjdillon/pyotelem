@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 from . import plotconfig as _plotconfig
-from .plotconfig import _colors, _linewidth
+from .plotconfig import _colors
 
 def plot_glide_depths(depths, mask_tag_filt):
     '''Plot depth at glides'''
@@ -20,10 +20,11 @@ def plot_glide_depths(depths, mask_tag_filt):
 
 
 def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
-        roll_lf, heading_lf, idx_start=None, idx_end=None, path_plot=None):
+        roll_lf, heading_lf, idx_start=None, idx_end=None, path_plot=None,
+        linewidth=0.5, clip_x=False):
 
     import matplotlib.pyplot as plt
-    from matplotlib.ticker import FuncFormatter
+    from matplotlib.ticker import FuncFormatter, ScalarFormatter
     import numpy
 
     from . import plotutils
@@ -39,9 +40,6 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
         elif idx_end:
             mask_exp[ind_exp[0]:idx_end] = True
 
-    # Create experiment indices from `mask_exp`
-    ind_exp = numpy.where(mask_exp)[0]
-
     # Filter passed data to experimental period
     depths      = depths[mask_exp]
     pitch_deg   = numpy.rad2deg(pitch_lf[mask_exp])
@@ -51,22 +49,33 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
     # Create subglide indice groups for plotting
     sgl_ind    = numpy.where(mask_tag_filt & mask_exp)[0]
     notsgl_ind = numpy.where((~mask_tag_filt) & mask_exp)[0]
-    sgl_ind    = sgl_ind - ind_exp[0]
-    notsgl_ind = notsgl_ind - ind_exp[0]
+    # Create experiment indices from `mask_exp`
+    ind_exp = numpy.where(mask_exp)[0]
+    offset = 0
+    plt_offset = ind_exp[0]
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+    # Clip values to within experimental period
+    if clip_x:
+        offset = ind_exp[0]
+        ind_exp = ind_exp - offset
+        sgl_ind    = sgl_ind - offset
+        notsgl_ind = notsgl_ind - offset
+        plt_offset = 0
+
+    fig, (ax1, ax2) = plt.subplots(2, 1)#, sharex=True)
 
     # Plot glides
     c0, c1 = _colors[0:2]
-    ax1 = plotutils.plot_noncontiguous(ax1, depths, sgl_ind, c0, 'Glides')
-    ax1 = plotutils.plot_noncontiguous(ax1, depths, notsgl_ind, c1, 'Stroking')
+    ax1 = plotutils.plot_noncontiguous(ax1, depths, sgl_ind, c0, 'Glides',
+                                       offset=plt_offset, linewidth=linewidth)
+    ax1 = plotutils.plot_noncontiguous(ax1, depths, notsgl_ind, c1, 'Stroking',
+                                       offset=plt_offset, linewidth=linewidth)
 
     # Plot PRH
     c0, c1, c2 = _colors[2:5]
-    x = ind_exp - ind_exp[0]
-    ax2.plot(x, pitch_deg, color=c0, label='Pitch', linewidth=_linewidth)
-    ax2.plot(x, roll_deg, color=c1, label='Roll', linewidth=_linewidth)
-    ax2.plot(x, heading_deg, color=c2, label='Heading', linewidth=_linewidth)
+    ax2.plot(ind_exp, pitch_deg, color=c0, label='Pitch', linewidth=linewidth)
+    ax2.plot(ind_exp, roll_deg, color=c1, label='Roll', linewidth=linewidth)
+    ax2.plot(ind_exp, heading_deg, color=c2, label='Heading', linewidth=linewidth)
 
     # Get dives within mask
     gg = sgls[mask_sgls_filt]
@@ -74,12 +83,16 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
     # Get midpoint of dive occurance
     x = (gg['start_idx'] + (gg['stop_idx'] - gg['start_idx'])/2)
     x = x.values.astype(float)
-    x_mask = (x > ind_exp[0]) & (x < ind_exp[-1])
+    x_mask = (x-offset > ind_exp[0]) & (x-offset< ind_exp[-1])
     x = x[x_mask]
-    x = x - ind_exp[0]
 
     # Get depth at midpoint
-    y = depths[numpy.round(x).astype(int)]
+    if clip_x:
+        x = x - offset
+        ind_x = numpy.round(x).astype(int)
+    else:
+        ind_x = numpy.round(x - plt_offset).astype(int)
+    y = depths[ind_x]
 
     # For each dive_id, sgl_id pair, create annotation string, apply
     dids = gg['dive_id'].values.astype(int)
@@ -92,21 +105,26 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
         ax1.annotate(txt, (x[i],y[i]))
 
     # Plot shaded areas where not sub-glides
-    ax1 = plotutils.plot_shade_mask(ax1, ~mask_tag_filt[mask_exp])
-    ax2 = plotutils.plot_shade_mask(ax2, ~mask_tag_filt[mask_exp])
+    ax1 = plotutils.plot_shade_mask(ax1, ind_exp, ~mask_tag_filt[mask_exp])
+    ax2 = plotutils.plot_shade_mask(ax2, ind_exp, ~mask_tag_filt[mask_exp])
 
     # Set x-axes limits
     for ax in [ax1, ax2]:
         ticks = ax.get_yticks()
         ax.set_ylim((ticks[0], ticks[-1]))
         if idx_start:
-            xmin = idx_start - ind_exp[0]
+            xmin = idx_start
         if idx_end:
-            xmax = idx_end - ind_exp[0]
+            xmax = idx_end
+        if clip_x:
+            xmin, xmax = xmin-offset, xmax-offset
         ax.set_xlim(xmin, xmax)
+        for tick in ax.get_xticklabels():
+            tick.set_rotation(45)
+            tick.set_ha('right')
 
     # Update Depth subplot y-axis labels, limits, invert depth
-    ax1.yaxis.label.set_text('Depth ($m$)')
+    ax1.set_ylabel('Depth ($m$)')
     ymin = depths.min() - (depths.max()*0.01)
     ymax = depths.max() + (depths.max()*0.01)
     print('depths', depths.min(), depths.max())
@@ -116,8 +134,7 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
     ax1.get_yaxis().set_label_coords(-0.06,0.5)
 
     # Update PRH subplot y labels, limits
-    ax2.yaxis.label.set_text('Angle ($\degree$)')
-    ax2.xaxis.label.set_text('Experiment duration')
+    ax2.set_ylabel('Angle ($\degree$)')
     deg_min = min([pitch_deg.min(), roll_deg.min(), heading_deg.min()])
     deg_max = max([pitch_deg.max(), roll_deg.max(), heading_deg.max()])
     ymin = -185
@@ -126,11 +143,15 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
     ax2.set_yticks([-180, -90, 0, 90, 180])
     ax2.get_yaxis().set_label_coords(-0.06,0.5)
 
+    ax1.set_xlabel('No. sensor samples')
+    mf1 = ScalarFormatter(useMathText=True)
+    mf1.set_powerlimits((-2,2))
+    ax1.xaxis.set_major_formatter(mf1)
+
     # Convert n_samples to hourmin labels
-    formatter = FuncFormatter(plotutils.nsamples_to_hourmin)
-    ax2.xaxis.set_major_formatter(formatter)
-    for tick in ax2.get_xticklabels():
-        tick.set_rotation(45)
+    ax2.set_xlabel('Experiment duration ($min \, sec$)')
+    mf2 = FuncFormatter(plotutils.nsamples_to_minsec)
+    ax2.xaxis.set_major_formatter(mf2)
 
     # Create legends outside plot area
     leg1 = ax1.legend(loc='upper right', bbox_to_anchor=(1.28,1))
@@ -141,7 +162,7 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
     if path_plot:
         import os
         fname = 'subglide_highlight'
-        ext = '.png'
+        ext = '.eps'
         file_fig = os.path.join(path_plot, fname+ext)
         plt.savefig(file_fig, box='tight')
 
