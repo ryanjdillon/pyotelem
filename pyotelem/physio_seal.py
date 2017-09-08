@@ -105,44 +105,78 @@ def bodycomp(mass, tbw, method='reilly', simulate=False, n_rand=1000):
             bc['tbp'] = mass * (bc['ptbp'] / 100)
             bc['tba'] = 0.1 - (0.008 * mass) + (0.05 * tbw)
             bc['tbge'] = (40.8 * mass) - (48.5 * tbw) - 0.4
+    elif method == 'gales':
+        if simulate is True:
+            raise ValueError('Random error simulation is currently only '
+                'implemented for `method` `reilly`. `simulate` must be passed '
+                'as `False` when using `method` `gales`.')
+        else:
+            bc['ptbw'] = 100 * (tbw / mass)
+            bc['tbf'] = mass - (1.37 * tbw)
+            bc['tbp'] = 0.27 * (mass - bc['tbf'])
+            bc['tbge'] = (40.8 * mass) - (48.5 * tbw) - 0.4
+            bc['ptbf'] = 100 * (bc['tbf'] / mass)
+            bc['ptbp'] = 100 * (bc['tbp'] / mass)
     else:
-        bc['ptbw'] = 100 * (tbw / mass)
-        bc['tbf'] = mass - (1.37 * tbw)
-        bc['tbp'] = 0.27 * (mass - bc['tbf'])
-        bc['tbge'] = (40.8 * mass) - (48.5 * tbw) - 0.4
-        bc['ptbf'] = 100 * (bc['tbf'] / mass)
-        bc['ptbp'] = 100 * (bc['tbp'] / mass)
+        raise ValueError('`method` must be either `reilly` or `gales`, not '
+            '`{}`'.format(method))
 
     return bc
 
 
-def perc_bc_from_lipid(p_lipid):
+def perc_bc_from_lipid(perc_lipid, perc_water=None):
     '''Calculate body composition component percentages based on % lipid
+
+    Calculation of percent protein and percent ash are based on those presented
+    in Reilly and Fedak (1990).
 
     Args
     ----
-    p_lipid: ndarray
-        Array of percent lipid values from which to calculate body composition
+    perc_lipid: float or ndarray
+        1D array of percent lipid values from which to calculate body composition
+    perc_water: float or ndarray
+        1D array of percent water values from which to calculate body
+        composition (Default `None`). If no values are passed, calculations are
+        performed with values from Biuw et al. (2003).
 
     Returns
     -------
-    perc_comps: pandas.Dataframe
-        Dataframe of percent composition values from percent lipids
+    perc_water: float or ndarray
+        1D array of percent water values
+    perc_protein: float or ndarray
+        1D array of percent protein values
+    perc_ash: float or ndarray
+        1D array of percent ash values
+
+    References
+    ----------
+    Biuw, M., 2003. Blubber and buoyancy: monitoring the body condition of
+    free-ranging seals using simple dive characteristics. Journal of
+    Experimental Biology 206, 3405–3423. doi:10.1242/jeb.00583
+
+    Reilly, J.J., Fedak, M.A., 1990. Measurement of the body composition of
+    living gray seals by hydrogen isotope dilution. Journal of Applied
+    Physiology 69, 885–891.
     '''
-    import pandas
+    import numpy
 
-    p_comps = pandas.DataFrame(index=range(len(p_lipid)))
+    # Cast iterables to numpy arrays
+    if numpy.iterable(perc_lipid):
+        perc_lipid = numpy.asarray(perc_lipid)
+    if numpy.iterable(perc_water):
+        perc_water = numpy.asarray(perc_water)
 
-    p_comps['perc_lipid']   = p_lipid
-    p_comps['perc_water']   = 71.4966 - (0.6802721 * p_lipid)
-    p_comps['perc_protien'] = (0.42 * p_comps['perc_water']) - 4.75
-    p_comps['perc_ash']     = 100 - (p_lipid + p_comps['perc_water'] + \
-                                     p_comps['perc_protien'])
+    if not perc_water:
+        # TODO check where `perc_water` values come from
+        perc_water   = 71.4966 - (0.6802721 * perc_lipid)
 
-    return p_comps
+    perc_protein = (0.42 * perc_water) - 4.75
+    perc_ash     = 100 - (perc_lipid + perc_water + perc_protein)
+
+    return perc_water, perc_protein, perc_ash
 
 
-def water_from_lipid_protien(lipid, protein):
+def water_from_lipid_protein(lipid, protein):
     '''Calculate total body water from total lipid and protein
 
     Args
@@ -166,66 +200,86 @@ def water_from_lipid_protien(lipid, protein):
     return -4.408148e-16+(2.828348*protein) + (1.278273e-01*lipid)
 
 
-def lip2dens(p_lipid, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994,
-        a_dens=2.3):
+def lip2dens(perc_lipid, dens_lipid=0.9007, dens_prot=1.34, dens_water=0.994,
+        dens_ash=2.3):
     '''Derive tissue density from lipids
+
+    The equation calculating animal density is from Biuw et al. (2003), and
+    default values for component densities are from human studies collected in
+    the book by Moore et al. (1963).
 
     Args
     ----
-    p_lipid: float
+    perc_lipid: float or ndarray
         Percent lipid of body composition
-    lipid_dens: float
+    dens_lipid: float
         Density of lipid in animal (Default 0.9007 g/cm^3)
-    prot_dens: float
-        Density of protien in animal (Default 1.34 g/cm^3)
-    water_dens: float
+    dens_prot: float
+        Density of protein in animal (Default 1.34 g/cm^3)
+    dens_water: float
         Density of water in animal (Default 0.994 g/cm^3)
-    a_dens: float
+    dens_ash: float
         Density of ash in animal (Default 2.3 g/cm^3)
 
     Returns
     -------
-    p_comps: pandas.DataFrame
-        Composition of body tissue components by percent
+    dens_gcm3: float or ndarray
+        Density of seal calculated from percent compositions and densities of
+        components from Moore et al. (1963)
 
     References
     ----------
     Biuw, M., 2003. Blubber and buoyancy: monitoring the body condition of
     free-ranging seals using simple dive characteristics. Journal of
     Experimental Biology 206, 3405–3423. doi:10.1242/jeb.00583
+
+    Moore FD, Oleson KH, McMurrery JD, Parker HV, Ball MR, Boyden CM. The Body
+    Cell Mass and Its Supporting Environment - The Composition in Health and
+    Disease. Philadelphia: W.B. Saunders Company; 1963. 535 p.
+    ISBN:0-7216-6480-6
     '''
+    import numpy
 
-    p_comps = perc_bc_from_lipid(p_lipid)
+    # Cast iterables to numpy array
+    if numpy.iterable(perc_lipid):
+        perc_lipid = numpy.asarray(perc_lipid)
 
-    p_comps['density'] = (lipid_dens * (0.01 * p_comps['perc_lipid'])) + \
-                         (prot_dens  * (0.01 * p_comps['perc_protien'])) + \
-                         (water_dens * (0.01 * p_comps['perc_water'])) + \
-                         (a_dens     * (0.01 * p_comps['perc_ash']))
-    return p_comps
+    perc_water, perc_protein, perc_ash = perc_bc_from_lipid(perc_lipid)
+
+    dens_gcm3 = (dens_lipid * (0.01 * perc_lipid)) + \
+                (dens_prot  * (0.01 * perc_protein)) + \
+                (dens_water * (0.01 * perc_water)) + \
+                (dens_ash   * (0.01 * perc_ash))
+
+    return dens_gcm3
 
 
-def dens2lip(dens_gcm3, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994,
-        a_dens=2.3):
+def dens2lip(dens_gcm3, dens_lipid=0.9007, dens_prot=1.34, dens_water=0.994,
+        dens_ash=2.3):
     '''Get percent composition of animal from body density
+
+    The equation calculating animal density is from Biuw et al. (2003), and
+    default values for component densities are from human studies collected in
+    the book by Moore et al. (1963).
 
     Args
     ----
-    dens_gcm3: ndarray
+    dens_gcm3: float or ndarray
         An array of seal densities (g/cm^3). The calculations only yield valid
         percents with densities between 0.888-1.123 with other parameters left
         as defaults.
-    lipid_dens: float
+    dens_lipid: float
         Density of lipid content in the animal (g/cm^3)
-    prot_dens: float
+    dens_prot: float
         Density of protein content in the animal (g/cm^3)
-    water_dens: float
+    dens_water: float
         Density of water content in the animal (g/cm^3)
-    a_dens: float
+    dens_ash: float
         Density of ash content in the animal (g/cm^3)
 
     Returns
     -------
-    p_all: pandas.DataFrame
+    perc_all: pandas.DataFrame
         Dataframe of components of body composition
 
     References
@@ -233,33 +287,32 @@ def dens2lip(dens_gcm3, lipid_dens=0.9007, prot_dens=1.34, water_dens=0.994,
     Biuw, M., 2003. Blubber and buoyancy: monitoring the body condition of
     free-ranging seals using simple dive characteristics. Journal of
     Experimental Biology 206, 3405–3423. doi:10.1242/jeb.00583
+
+    Moore FD, Oleson KH, McMurrery JD, Parker HV, Ball MR, Boyden CM. The Body
+    Cell Mass and Its Supporting Environment - The Composition in Health and
+    Disease. Philadelphia: W.B. Saunders Company; 1963. 535 p.
+    ISBN:0-7216-6480-6
     '''
     import numpy
 
-    # Convert any passed scalars to array-like and typecast to `numpy.array`
-    if not numpy.iterable(dens_gcm3):
-        dens_gcm3 = [dens_gcm3]
-    # Ensure numpy array type
-    dens_gcm3 = numpy.array(dens_gcm3)
+    # Cast iterables to numpy array
+    if numpy.iterable(dens_gcm3):
+        dens_gcm3 = numpy.asarray(dens_gcm3)
 
-    ad_numerat =  -3.2248 * a_dens
-    pd_numerat = -25.2786 * prot_dens
-    wd_numerat = -71.4966 * water_dens
+    # Numerators
+    ad_num =  -3.2248 * dens_ash
+    pd_num = -25.2786 * dens_prot
+    wd_num = -71.4966 * dens_water
 
-    ad_denom = -0.034  * a_dens
-    pd_denom = -0.2857 * prot_dens
-    wd_denom = -0.6803 * water_dens
+    # Denominators
+    ad_den = -0.034  * dens_ash
+    pd_den = -0.2857 * dens_prot
+    wd_den = -0.6803 * dens_water
 
-    p_lipid = ((100 * dens_gcm3) + ad_numerat + pd_numerat + wd_numerat) / \
-              (lipid_dens + ad_denom + pd_denom + wd_denom)
+    perc_lipid = ((100 * dens_gcm3) + ad_num + pd_num + wd_num) / \
+                        (dens_lipid + ad_den + pd_den + wd_den)
 
-    p_all = lip2dens(p_lipid)
-    p_all = p_all[['perc_water', 'perc_protien', 'perc_ash']]
-
-    p_all['density'] = dens_gcm3
-    p_all['perc_lipid'] = p_lipid
-
-    return p_all
+    return perc_lipid
 
 
 def buoyant_force(dens_gcm3, vol, sw_dens=1.028):
