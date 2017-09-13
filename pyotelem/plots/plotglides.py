@@ -19,9 +19,9 @@ def plot_glide_depths(depths, mask_tag_filt):
     return None
 
 
-def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
-        roll_lf, heading_lf, idx_start=None, idx_end=None, path_plot=None,
-        linewidth=0.5, clip_x=False):
+def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, Az_g_hf,
+        idx_start=None, idx_end=None, path_plot=None, linewidth=0.5,
+        clip_x=False):
 
     import matplotlib.pyplot as plt
     from matplotlib.ticker import FuncFormatter, ScalarFormatter
@@ -41,10 +41,8 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
             mask_exp[ind_exp[0]:idx_end] = True
 
     # Filter passed data to experimental period
-    depths      = depths[mask_exp]
-    pitch_deg   = numpy.rad2deg(pitch_lf[mask_exp])
-    roll_deg    = numpy.rad2deg(roll_lf[mask_exp])
-    heading_deg = numpy.rad2deg(heading_lf[mask_exp])
+    depths  = depths[mask_exp]
+    Az_g_hf = Az_g_hf[mask_exp]
 
     # Create subglide indice groups for plotting
     sgl_ind    = numpy.where(mask_tag_filt & mask_exp)[0]
@@ -62,20 +60,21 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
         notsgl_ind = notsgl_ind - offset
         plt_offset = 0
 
-    fig, (ax1, ax2) = plt.subplots(2, 1)#, sharex=True)
+    fig, (ax1, ax2) = plt.subplots(2, 1)
 
     # Plot glides
     c0, c1 = _colors[0:2]
     ax1 = plotutils.plot_noncontiguous(ax1, depths, sgl_ind, c0, 'Glides',
-                                       offset=plt_offset, linewidth=linewidth)
+                                       offset=plt_offset,
+                                       linewidth=linewidth*2)
     ax1 = plotutils.plot_noncontiguous(ax1, depths, notsgl_ind, c1, 'Stroking',
-                                       offset=plt_offset, linewidth=linewidth)
+                                       offset=plt_offset, linewidth=linewidth,
+                                       linestyle='--')
 
-    # Plot PRH
-    c0, c1, c2 = _colors[2:5]
-    ax2.plot(ind_exp, pitch_deg, color=c0, label='Pitch', linewidth=linewidth)
-    ax2.plot(ind_exp, roll_deg, color=c1, label='Roll', linewidth=linewidth)
-    ax2.plot(ind_exp, heading_deg, color=c2, label='Heading', linewidth=linewidth)
+    # Plot HF Z-axis
+    c0 = _colors[2]
+    ax2.plot(ind_exp, Az_g_hf, color=c0, label='Z-axis HF Acc.',
+            linewidth=linewidth)
 
     # Get dives within mask
     gg = sgls[mask_sgls_filt]
@@ -101,12 +100,16 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
     sids = sids[x_mask]
     n = ['Dive:{}, SGL:{}'.format(did, sid) for did, sid in zip(dids, sids)]
 
+    diff = ind_exp[1] - ind_exp[0]
     for i, txt in enumerate(n):
-        ax1.annotate(txt, (x[i],y[i]))
+        # TODO semi-hardcoded dist for annotation
+        ax1.annotate(txt, (x[i]+int(diff*16),y[i]))
 
     # Plot shaded areas where not sub-glides
-    ax1 = plotutils.plot_shade_mask(ax1, ind_exp, ~mask_tag_filt[mask_exp])
-    ax2 = plotutils.plot_shade_mask(ax2, ind_exp, ~mask_tag_filt[mask_exp])
+    ax1 = plotutils.plot_shade_mask(ax1, ind_exp, ~mask_tag_filt[mask_exp],
+            facecolor='#d9d9d9')
+    ax2 = plotutils.plot_shade_mask(ax2, ind_exp, ~mask_tag_filt[mask_exp],
+            facecolor='#d9d9d9')
 
     # Set x-axes limits
     for ax in [ax1, ax2]:
@@ -129,18 +132,14 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
     ymax = depths.max() + (depths.max()*0.01)
     ax1.set_ylim((ymin, ymax))
     ax1.invert_yaxis()
-    ax1.get_yaxis().set_label_coords(-0.06,0.5)
+    ax1.get_yaxis().set_label_coords(-0.09,0.5)
 
     # Update PRH subplot y labels, limits
-    ax2.set_ylabel('Angle ($\degree$)')
-    deg_min = min([pitch_deg.min(), roll_deg.min(), heading_deg.min()])
-    deg_max = max([pitch_deg.max(), roll_deg.max(), heading_deg.max()])
-    ymin = -185
-    ymax = 185
-    ax2.set_ylim((ymin, ymax))
-    ax2.set_yticks([-180, -90, 0, 90, 180])
-    ax2.get_yaxis().set_label_coords(-0.06,0.5)
+    ax2.set_ylabel('Z-axis acceleration ($g$)')
+    ax2.set_ylim((Az_g_hf.min(), Az_g_hf.max()))
+    ax2.get_yaxis().set_label_coords(-0.09,0.5)
 
+    # Scientific notation for ax1 `n_samples`
     ax1.set_xlabel('No. sensor samples')
     mf1 = ScalarFormatter(useMathText=True)
     mf1.set_powerlimits((-2,2))
@@ -152,8 +151,7 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, pitch_lf,
     ax2.xaxis.set_major_formatter(mf2)
 
     # Create legends outside plot area
-    leg1 = ax1.legend(loc='upper right', bbox_to_anchor=(1.28,1))
-    leg2 = ax2.legend(loc='upper right', bbox_to_anchor=(1.28,1))
+    leg1 = ax1.legend(loc='upper right', bbox_to_anchor=(1.23,1))
     plt.tight_layout(rect=[0,0,0.8,1])
 
     # Save plot if `path_plot` passed
