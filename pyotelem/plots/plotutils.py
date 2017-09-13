@@ -27,7 +27,7 @@ def nsamples_to_hourminsec(x, pos):
     '''
 
     h, m, s = hourminsec(x/16.0)
-    return '{:.0f}h {:2.0f}′{:2.1f}″'.format(h, m, s)
+    return '{:.0f}h {:2.0f}′ {:2.1f}″'.format(h, m, s)
 
 
 def nsamples_to_hourmin(x, pos):
@@ -48,11 +48,12 @@ def nsamples_to_minsec(x, pos):
     https://matplotlib.org/examples/pylab_examples/custom_ticker1.html
     '''
     h, m, s = hourminsec(x/16.0)
-    return '{:2.0f}′{:2.1f}″'.format(m+(h*60), s)
+    return '{:2.0f}′ {:2.1f}″'.format(m+(h*60), s)
 
 
-def add_alpha_labels(axes, xpos=0.03, ypos=0.95, color=None, boxstyle='square',
-        facecolor='white', edgecolor='white', alpha=1.0):
+def add_alpha_labels(axes, xpos=0.03, ypos=0.95, suffix='', color=None,
+        fontsize=14, fontweight='normal', boxstyle='square', facecolor='white',
+        edgecolor='white', alpha=1.0):
     '''Add sequential alphbet labels to subplot axes
 
     e.g. A., B., C., etc.
@@ -87,15 +88,16 @@ def add_alpha_labels(axes, xpos=0.03, ypos=0.95, color=None, boxstyle='square',
         if color is None:
             color = colors[i]
         kwargs = dict(color=color,
-                      fontweight='bold',)
+                      fontweight=fontweight,)
 
         bbox = dict(boxstyle=boxstyle,
                      facecolor=facecolor,
                      edgecolor=edgecolor,
-                     alpha=1.0)
+                     alpha=alpha)
 
-        ax.text(xpos[i], ypos[i], '{}.'.format(label), transform=ax.transAxes,
-                fontsize=14, verticalalignment='top', bbox=bbox, **kwargs)
+        ax.text(xpos[i], ypos[i], '{}{}'.format(label, suffix),
+                transform=ax.transAxes, fontsize=fontsize,
+                verticalalignment='top', bbox=bbox, **kwargs)
     return axes
 
 
@@ -130,7 +132,7 @@ def merge_limits(axes, xlim=True, ylim=True):
 
 
 def plot_noncontiguous(ax, data, ind, color='black', label='', offset=0,
-        linewidth=0.5):
+        linewidth=0.5, linestyle='-'):
     '''Plot non-contiguous slice of data
 
     Args
@@ -162,7 +164,8 @@ def plot_noncontiguous(ax, data, ind, color='black', label='', offset=0,
         return ind_nan, data_nan
 
     x, y = slice_with_nans(ind, data, offset)
-    ax.plot(x, y, color=color, linewidth=linewidth, label=label)
+    ax.plot(x, y, color=color, linewidth=linewidth, linestyle=linestyle,
+            label=label)
 
     return ax
 
