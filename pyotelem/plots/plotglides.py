@@ -117,8 +117,12 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, Az_g_hf,
         ax.set_ylim((ticks[0], ticks[-1]))
         if idx_start:
             xmin = idx_start
+        else:
+            xmin = ax.get_xlim()[0]
         if idx_end:
             xmax = idx_end
+        else:
+            xmax = ax.get_xlim()[1]
         if clip_x:
             xmin, xmax = xmin-offset, xmax-offset
         ax.set_xlim(xmin, xmax)
