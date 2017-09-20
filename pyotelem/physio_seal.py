@@ -358,17 +358,6 @@ def diff_speed(sw_dens=1.028, dens_gcm3=1.053, seal_length=300, seal_girth=200,
     Cd: float
         Drag coefficient of object in fluid, unitless
 
-    Attributes
-    ----------
-    surf: float
-        Surface area of animal (cm^2)
-    vol: float
-        Volume of animal (cm^3)
-    Fb: float
-        Buoyant force (N)
-    x: float
-        Inner term for of `Vt` calculation
-
     Returns
     -------
     Vt: float
@@ -399,7 +388,6 @@ def diff_speed(sw_dens=1.028, dens_gcm3=1.053, seal_length=300, seal_girth=200,
     return Vt
 
 
-# TODO en? review with Martin
 def lip2en(BM, perc_lipid):
     '''Percent lipid composition to percent energy stores
 

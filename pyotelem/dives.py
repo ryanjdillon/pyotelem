@@ -14,17 +14,19 @@ def finddives2(depths, min_dive_thresh=10):
     dives: ndarray
         Dive summary information in a numpy record array
 
-        Columns:
-          dive_id
-          start_idx
-          stop_idx
-          dive_dur
-          depth_max
-          depth_max_i
-          depth_min
-          depth_min_i
-          depth_mean
-          comp_mean
+        *Columns*:
+
+        * dive_id
+        * start_idx
+        * stop_idx
+        * dive_dur
+        * depth_max
+        * depth_max_i
+        * depth_min
+        * depth_min_i
+        * depth_mean
+        * comp_mean
+
     dive_mask: ndarray
         Boolean mask array over depth data. Cells with `True` are dives and
         cells with `False` are not.
@@ -168,10 +170,12 @@ def get_bottom(depths, des_mask, asc_mask):
     BOTTOM: ndarray (n,4)
         Indices and depths for when the animal is at the bottom
 
-        0: start ind
-        1: depth at start
-        2: stop ind
-        3: depth at stop
+        *Index positions*:
+
+        0. start ind
+        1. depth at start
+        2. stop ind
+        3. depth at stop
     '''
     import numpy
 
@@ -218,8 +222,13 @@ def get_phase(n_samples, des_mask, asc_mask):
     Returns
     -------
     phase: numpy.ndarray, shape (n,)
-        Signed integer array with 0: neither ascending/descending, 1:
-        ascending, -1: descending.
+        Signed integer array values representing animal's dive phase
+
+        *Phases*:
+
+        *  0: neither ascending/descending
+        *  1: ascending
+        * -1: descending.
     '''
     import numpy
 

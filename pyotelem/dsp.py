@@ -2,6 +2,8 @@
 def normalized(a, axis=-1, order=2):
     '''Return normalized vector for arbitrary axis
 
+    Args
+    ----
     a: ndarray (n,3)
         Tri-axial vector data
     axis: int
@@ -9,6 +11,9 @@ def normalized(a, axis=-1, order=2):
     order: int
         Order of nomalization to calculate
 
+    Notes
+    -----
+    This function was adapted from the following StackOverflow answer:
     http://stackoverflow.com/a/21032099/943773
     '''
     import numpy
@@ -35,16 +40,18 @@ def findzc(x, thresh, t_max=None):
 
     Returns
     -------
-    zc: nx3 matrix [zc_s,zc_f,S]
-        array containing the start, finish and direction of zero crossings
+    zc: ndarray
+        Array containing the start **zc_s**, finish **zc_f** and direction **S**
+        of zero crossings
 
         where:
 
-        * zc_s contains the cue of the first threshold-crossing in samples
-        * zc_f contains the cue of the second threshold-crossing in samples
-        * S contains the sign of each zero-crossing
-          (1 = positive-going, -1 = negative-going).
+        * zc_s: the cue of the first threshold-crossing in samples
+        * zc_f: the cue of the second threshold-crossing in samples
+        * S: the sign of each zero-crossing (1 = positive-going, -1 = negative-going).
 
+    Notes
+    -----
     This routine is a reimplementation of Mark Johnson's Dtag toolbox method
     and tested against the Matlab version to be sure it has the same result.
     '''
@@ -109,8 +116,6 @@ def findzc(x, thresh, t_max=None):
 def butter_filter(cutoff, fs, order=5, btype='low'):
     '''Create a digital butter fileter with cutoff frequency in Hz
 
-    http://stackoverflow.com/a/25192640/943773
-
     Args
     ----
     cutoff: float
@@ -127,6 +132,11 @@ def butter_filter(cutoff, fs, order=5, btype='low'):
         Numerator polynomials of the IIR butter filter
     a: ndarray
         Denominator polynomials of the IIR butter filter
+
+    Notes
+    -----
+    This function was adapted from the following StackOverflow answer:
+    http://stackoverflow.com/a/25192640/943773
     '''
     import scipy.signal
 
@@ -137,8 +147,12 @@ def butter_filter(cutoff, fs, order=5, btype='low'):
     return b, a
 
 
-def butter_apply(b, a, data, method='gust'):
+def butter_apply(b, a, data):
     '''Apply filter with filtfilt to allign filtereted data with input
+
+    The filter is applied once forward and once backward to give it linear
+    phase, using Gustafsson's method to give the same length as the original
+    signal.
 
     Args
     ----
@@ -152,10 +166,13 @@ def butter_apply(b, a, data, method='gust'):
     x: ndarray
         Filtered data with linear phase
 
+    Notes
+    -----
+    This function was adapted from the following StackOverflow answer:
     http://stackoverflow.com/a/25192640/943773
     '''
     import scipy.signal
-    #y = lfilter(b, a, data)
+
     return scipy.signal.filtfilt(b, a, data, method='gust')
 
 
@@ -204,7 +221,7 @@ def simple_peakfinder(x, y, delta):
     '''Detect local maxima and minima in a vector
 
     A point is considered a maximum peak if it has the maximal value, and was
-    preceded (to the left) by a value lower by DELTA.
+    preceded (to the left) by a value lower by `delta`.
 
     Args
     ----
