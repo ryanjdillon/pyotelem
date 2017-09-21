@@ -13,7 +13,7 @@ setup(
     long_description=long_description,
     author='Ryan J. Dillon',
     author_email='ryanjamesdillon@gmail.com',
-    url='https://github.com/ryanjdillon/pylleo',
+    url='https://github.com/ryanjdillon/pyotelem',
     download_url='https://github.com/ryanjdillon/pyotelem/archive/0.1.tar.gz',
     license='GPL-3.0+',
     packages=['pyotelem'],
