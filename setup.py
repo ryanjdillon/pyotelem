@@ -20,7 +20,8 @@ setup(
     install_requires=[
         'gsw',
         'pandas',
-        'scipy'],
+        'scipy',
+        'matplotlib'],
     include_package_data=True,
     keywords=['datalogger','accelerometer','biotelemetry'],
     classifiers=[
