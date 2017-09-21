@@ -14,7 +14,7 @@ Documentation
 =============
 
 Currently only API documentation has been generated, which you can `find here
-<https://readthedocs.org/projects/pyotelem/>`_.
+<http://pyotelem.readthedocs.io/en/latest/>`_.
 Some code recipes will be added as soon as possible.
 
 Contributions
