@@ -14,7 +14,7 @@ Documentation
 =============
 
 Currently only API documentation has been generated, which you can `find here
-<https://readthedocs.org/projects/pyotelem/>`_.
+<http://pyotelem.readthedocs.io/en/latest/>`_.
 Some code recipes will be added as soon as possible.
 
 Contributions
@@ -26,16 +26,14 @@ Contributions
   * **Mark Johnson** - The digital signal processing code from the Dtag
     toolbox written in Matlab
 
-  * **Lucia Martina Martin Lopez** - Original glide identification code
+  * **Lucía Martina Martín López** - Original glide identification code
     written in Matlab
 
   * **Martin Biuw** - Original seal physiology code written in R.
 
-  * Code taken or adapted from Stackoverflow_ is in the public domain, and the
+  * Code taken or adapted from `Stackoverflow <https://stackoverflow.com/>`_ is in the public domain, and the
     respective posts where it was found should be linked to in the document
     string of the routines in which it was used.
-
-.. Stackoverflow: https://stackoverflow.com/
 
 License
 =======
