@@ -36,9 +36,6 @@ plots
 .. automodule:: pyotelem.plots
    :members:
 
-.. automodule:: pyotelem.plots.plotconfig
-   :members:
-
 .. automodule:: pyotelem.plots.plotdives
    :members:
 
