@@ -32,6 +32,9 @@ def contiguous_regions(condition):
     stop_ind: numpy.ndarray, dtype int
         array with the stop indices for each contiguous region
 
+    Notes
+    -----
+    This function is adpated from Joe Kington's answer on StackOverflow:
     http://stackoverflow.com/a/4495197/943773
     '''
     import numpy
@@ -104,7 +107,7 @@ def rm_regions(a, b, a_start_ind, a_stop_ind):
 
 
 def recursive_input(input_label, type_class):
-    '''General user input function
+    '''Recursive user input prompter with type checker
 
     Args
     ----
