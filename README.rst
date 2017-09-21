@@ -6,14 +6,15 @@ A library for performing data analysis on biotelemetry and biologger data.
 Install
 =======
 
-.. codeblock::
+.. code:: bash
+
     pip3 install pyotelem
 
 Documentation
 =============
 
 Currently only API documentation has been generated, which you can `find here
-<>`_.
+<https://readthedocs.org/projects/pyotelem/>`_.
 Some code recipes will be added as soon as possible.
 
 Contributions
