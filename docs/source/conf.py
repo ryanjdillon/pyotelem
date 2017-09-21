@@ -57,8 +57,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Pyotelem'
-copyright = '2017, Ryan J. Dillon, Mark Johnson, Martín López, LucíLucía Martina Martín López, Martin Biuw'
-author = 'Ryan J. Dillon, Mark Johnson, Martín López, LucíLucía Martina Martín López, Martin Biuw'
+copyright = '2017, Ryan J. Dillon, Mark Johnson, Lucia Martina Martín Lopez, Martin Biuw'
+author = 'Ryan J. Dillon, Mark Johnson, Lucia Martina Martin Lopez, Martin Biuw'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
