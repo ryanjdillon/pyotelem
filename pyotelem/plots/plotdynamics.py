@@ -1,12 +1,29 @@
+'''
+Plotting functions for dynamic movement of the animal, including pitch, roll,
+and heading as well as speed.
+'''
+
 import matplotlib.pyplot as plt
 
 from . import plotconfig as _plotconfig
 from .plotconfig import _colors, _linewidth
 
-# Pitch, Roll, Heading
-#------------------------------------------------------------------------------
-
 def plot_prh_des_asc(p, r, h, asc, des):
+    '''Plot pitch, roll, and heading during the descent and ascent dive phases
+
+    Args
+    ----
+    p: ndarray
+        Derived pitch data
+    r: ndarray
+        Derived roll data
+    h: ndarray
+        Derived heading data
+    des: ndarray
+        boolean mask for slicing descent phases of dives from tag dta
+    asc: ndarray
+        boolean mask for slicing asccent phases of dives from tag dta
+    '''
     import matplotlib.pyplot as plt
     import numpy
 
@@ -42,6 +59,23 @@ def plot_prh_des_asc(p, r, h, asc, des):
 
 
 def plot_prh_filtered(p, r, h, p_lf, r_lf, h_lf):
+    '''Plot original and low-pass filtered PRH data
+
+    Args
+    ----
+    p: ndarray
+        Derived pitch data
+    r: ndarray
+        Derived roll data
+    h: ndarray
+        Derived heading data
+    p_lf: ndarray
+        Low-pass filtered pitch data
+    r_lf: ndarray
+        Low-pass filtered roll data
+    h_lf: ndarray
+        Low-pass filtered heading data
+    '''
     import numpy
 
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex='col')
@@ -77,6 +111,15 @@ def plot_prh_filtered(p, r, h, p_lf, r_lf, h_lf):
 
 
 def plot_swim_speed(exp_ind, swim_speed):
+    '''Plot the swim speed during experimental indices
+
+    Args
+    ----
+    exp_ind: ndarray
+        Indices of tag data where experiment is active
+    swim_speed: ndarray
+        Swim speed data at sensor sampling rate
+    '''
     import numpy
 
     fig, ax = plt.subplots()
@@ -90,5 +133,3 @@ def plot_swim_speed(exp_ind, swim_speed):
     plt.show()
 
     return ax
-
-

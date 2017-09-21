@@ -1,10 +1,21 @@
+'''
+Glides and subglide plotting functions
+'''
 import matplotlib.pyplot as plt
 
 from . import plotconfig as _plotconfig
 from .plotconfig import _colors
 
 def plot_glide_depths(depths, mask_tag_filt):
-    '''Plot depth at glides'''
+    '''Plot depth at glides
+
+    Args
+    ----
+    depths: ndarray
+        Depth values at each sensor sampling
+    mask_tag_filt: ndarray
+        Boolean mask to slice filtered sub-glides from tag data
+    '''
     import numpy
 
     from . import plotutils
@@ -22,7 +33,33 @@ def plot_glide_depths(depths, mask_tag_filt):
 def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, Az_g_hf,
         idx_start=None, idx_end=None, path_plot=None, linewidth=0.5,
         clip_x=False):
+    '''Plot sub-glides over depth and high-pass filtered accelerometer signal
 
+    Args
+    ----
+    mask_exp: ndarray
+        Boolean mask array to slice tag data to experimtal period
+    depths: ndarray
+        Depth values at each sensor sampling
+    mask_tag_filt: ndarray
+        Boolean mask to slice filtered sub-glides from tag data
+    sgls: pandas.DataFrame
+        Sub-glide summary information defined by `SGL` start/stop indices
+    mask_sgls_filt: ndarray
+        Boolean mask to slice filtered sub-glides from sgls data
+    Az_g_hf: ndarray
+        High-pass filtered, calibrated z-axis accelerometer data
+    idx_start: int
+        Sample index position where plot should begin
+    idx_stop: int
+        Sample index position where plot should stop
+    path_plot: str
+        Path and filename for figure to be saved
+    linewidth: float
+        Width of plot lines (Default: 0.5)
+    clip_x: bool
+        Swith to clip x-axis to the experimental period
+    '''
     import matplotlib.pyplot as plt
     from matplotlib.ticker import FuncFormatter, ScalarFormatter
     import numpy

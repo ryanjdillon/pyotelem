@@ -1,17 +1,61 @@
+'''
+Utility functions for plotting
+'''
 import matplotlib.pyplot as plt
 
 
 def roundup(x, order):
+    '''Round a number to the passed order
+
+    Args
+    ----
+    x: float
+        Number to be rounded
+    order: int
+        Order to which `x` should be rounded
+
+    Returns
+    -------
+    x_round: float
+        The passed value rounded to the passed order
+    '''
     return x if x % 10**order == 0 else x + 10**order - x % 10**order
 
 
 def magnitude(x):
+    '''Determine the magnitude of a number
+
+    Args
+    ----
+    x: float
+        Number whose magnitude to find
+
+    Returns
+    -------
+    mag: int
+        Magnitude of passed number
+    '''
     import math
     return int(math.floor(math.log10(x)))
 
 
 def hourminsec(n_seconds):
-    '''Generate a string of hours and minutes from total number of seconds'''
+    '''Generate a string of hours and minutes from total number of seconds
+
+    Args
+    ----
+    n_seconds: int
+        Total number of seconds to calculate hours, minutes, and seconds from
+
+    Returns
+    -------
+    hours: int
+        Number of hours in `n_seconds`
+    minutes: int
+        Remaining minutes in `n_seconds` after number of hours
+    seconds: int
+        Remaining seconds in `n_seconds` after number of minutes
+    '''
 
     hours, remainder = divmod(n_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -22,6 +66,8 @@ def hourminsec(n_seconds):
 def nsamples_to_hourminsec(x, pos):
     '''Convert axes labels to experiment duration in hours/minutes/seconds
 
+    Notes
+    -----
     Matplotlib FuncFormatter function
     https://matplotlib.org/examples/pylab_examples/custom_ticker1.html
     '''
@@ -33,6 +79,8 @@ def nsamples_to_hourminsec(x, pos):
 def nsamples_to_hourmin(x, pos):
     '''Convert axes labels to experiment duration in hours/minutes
 
+    Notes
+    -----
     Matplotlib FuncFormatter function
     https://matplotlib.org/examples/pylab_examples/custom_ticker1.html
     '''
@@ -44,6 +92,8 @@ def nsamples_to_hourmin(x, pos):
 def nsamples_to_minsec(x, pos):
     '''Convert axes labels to experiment duration in minutes/seconds
 
+    Notes
+    -----
     Matplotlib FuncFormatter function
     https://matplotlib.org/examples/pylab_examples/custom_ticker1.html
     '''
@@ -56,7 +106,35 @@ def add_alpha_labels(axes, xpos=0.03, ypos=0.95, suffix='', color=None,
         edgecolor='white', alpha=1.0):
     '''Add sequential alphbet labels to subplot axes
 
-    e.g. A., B., C., etc.
+    Args
+    ----
+    axes: list of pyplot.ax
+        A list of matplotlib axes to add the label labels to
+    xpos: float or array_like
+        X position(s) of labels in figure coordinates
+    ypos: float or array_like
+        Y position(s) of labels in figure coordinates
+    suffix: str
+        String to append to labels (e.g. '.' or ' name)
+    color: matplotlib color
+        Color of labels
+    fontsize: int
+        Alppa fontsize
+    fontweight: matplotlib fontweight
+        Alpha fontweight
+    boxstyle: matplotlib boxstyle
+        Alpha boxstyle
+    facecolor: matplotlib facecolor
+        Color of box containing label
+    edgecolor: matplotlib edgecolor
+        Color of box'es border containing label
+    alpha: float
+        Transparency of label
+
+    Returns
+    -------
+    axes: list of pyplot.ax
+        A list of matplotlib axes objects with alpha labels added
     '''
     import seaborn
     import string
@@ -137,12 +215,25 @@ def plot_noncontiguous(ax, data, ind, color='black', label='', offset=0,
 
     Args
     ----
-    data: 1-D numpy array
-    ind: indices of data to be plotted
+    data: ndarray
+        The data with non continguous regions to plot
+    ind: ndarray
+        indices of data to be plotted
+    color: matplotlib color
+        Color of plotted line
+    label: str
+        Name to be shown in legend
+    offset: int
+        The number of index positions to reset start of data to zero
+    linewidth: float
+        The width of the plotted line
+    linstyle: str
+        The char representation of the plotting style for the line
 
     Returns
     -------
-    ax: matplotlib axes object
+    ax: pyplot.ax
+        Axes object with line glyph added for non-contiguous regions
     '''
 
     def slice_with_nans(ind, data, offset):
@@ -170,9 +261,26 @@ def plot_noncontiguous(ax, data, ind, color='black', label='', offset=0,
     return ax
 
 
-def plot_shade_mask(ax, ind, mask, facecolor='gray'):
-    '''Shade across x values where boolean mask is `True`'''
+def plot_shade_mask(ax, ind, mask, facecolor='gray', alpha=0.5):
+    '''Shade across x values where boolean mask is `True`
+
+    Args
+    ----
+    ax: pyplot.ax
+        Axes object to plot with a shaded region
+    ind: ndarray
+        The indices to use for the x-axis values of the data
+    mask: ndarray
+        Boolean mask array to determine which regions should be shaded
+    facecolor: matplotlib color
+        Color of the shaded area
+
+    Returns
+    -------
+    ax: pyplot.ax
+        Axes object with the shaded region added
+    '''
     ymin, ymax = ax.get_ylim()
     ax.fill_between(ind, ymin, ymax, where=mask,
-                    facecolor=facecolor, alpha=0.5)
+                    facecolor=facecolor, alpha=alpha)
     return ax

@@ -1,26 +1,25 @@
+'''
+Signal processing plotting functions
+'''
 import matplotlib.pyplot as plt
 
 from . import plotconfig as _plotconfig
 from .plotconfig import _colors, _linewidth
 
-# Signal
-#------------------------------------------------------------------------------
-
-#def plot_cutoff_peak(f_x, S_x, f_x, S_z, peak_idx, idx_f, min_f):
-#    '''Plot cuttoff frequencies, axes 0 & 2'''
-#
-#    b = plt.plot(f, S, 'b', label='')
-#    r = plt.plot(f, S, 'r')
-#    #legend([b, r], 'HPF acc x axis (surge)', 'HPF acc z axis (heave)')
-#
-#    plt.plot(f[peak_idx], S[peak_idx], 'o', markersize=10, _linewidth=2)
-#    plt.plot([f[idx_f], f[idx_f]],[min(S[:]), min_f],'--', _linewidth=2)
-#    # ['f = '.format(float(round(f[idx_f]*100)/100))],
-#
-#    return None
 
 def plot_lf_hf(x, xlf, xhf, title=''):
     '''Plot original signal, low-pass filtered, and high-pass filtered signals
+
+    Args
+    ----
+    x: ndarray
+        Signal data array
+    xlf: ndarray
+        Low-pass filtered signal
+    xhf: ndarray
+        High-pass filtered signal
+    title: str
+        Main title of plot
     '''
     from . import plotutils
 
@@ -68,6 +67,22 @@ def plot_lf_hf(x, xlf, xhf, title=''):
 
 
 def plot_acc_pry_depth(A_g_lf, A_g_hf, pry_deg, depths, glide_mask=None):
+    '''Plot the acceleration with the pitch, roll, and heading
+
+    Args
+    ----
+    A_g_lf: ndarray
+        Low-pass filtered calibration accelerometer signal
+    A_g_hf: ndarray
+        High-pass filtered calibration accelerometer signal
+    pry_deg: ndarray
+        Pitch roll and heading in degrees
+    depths: ndarray
+        Depth data for all samples
+    glide_mask: ndarray
+        Boolean array for slicing glides from tag data
+    '''
+
     import numpy
 
     fig, (ax1, ax2, ax3) = plt.subplots(3,1, sharex=True)
@@ -94,7 +109,19 @@ def plot_acc_pry_depth(A_g_lf, A_g_hf, pry_deg, depths, glide_mask=None):
 
 
 def plot_welch_peaks(f, S, peak_loc=None, title=''):
-    '''Plot welch PSD with peaks as scatter points'''
+    '''Plot welch PSD with peaks as scatter points
+
+    Args
+    ----
+    f: ndarray
+        Array of frequencies produced with PSD
+    S: ndarray
+        Array of powers produced with PSD
+    peak_loc: ndarray
+        Indices of peak locations in signal
+    title: str
+        Main title for plot
+    '''
     plt.plot(f, S, linewidth=_linewidth)
     plt.title(title)
     plt.xlabel('Fequency (Hz)')
@@ -110,6 +137,17 @@ def plot_welch_peaks(f, S, peak_loc=None, title=''):
 
 
 def plot_fft(f, S, dt):
+    '''Plot fft
+
+    Args
+    ----
+    f: ndarray
+        Array of frequencies produced with PSD
+    S: ndarray
+        Array of powers produced with PSD
+    dt: ndarray
+        Sampling rate of sensor
+    '''
     import numpy
 
     xf = numpy.linspace(0.0, 1/(2.0*dt), N/2)
@@ -120,6 +158,17 @@ def plot_fft(f, S, dt):
 
 
 def plot_welch_perdiogram(x, fs, nperseg):
+    '''Plot Welch perdiogram
+
+    Args
+    ----
+    x: ndarray
+        Signal array
+    fs: float
+        Sampling frequency
+    nperseg: float
+        Length of each data segment in PSD
+    '''
     import scipy.signal
     import numpy
 
@@ -157,6 +206,23 @@ def plot_welch_perdiogram(x, fs, nperseg):
 def plot_data_filter(data, data_f, b, a, cutoff, fs):
     '''Plot frequency response and filter overlay for butter filtered data
 
+    Args
+    ----
+    data: ndarray
+        Signal array
+    data_f: float
+        Signal sampling rate
+    b: array_like
+        Numerator of a linear filter
+    a: array_like
+        Denominator of a linear filter
+    cutoff: float
+        Cutoff frequency for the filter
+    fs: float
+        Sampling rate of the signal
+
+    Notes
+    -----
     http://stackoverflow.com/a/25192640/943773
     '''
     import matplotlib.pyplot as plt

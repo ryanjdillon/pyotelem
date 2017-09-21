@@ -1,13 +1,29 @@
+'''
+Dive and dive phase plotting functions
+'''
 import matplotlib.pyplot as plt
 
 from . import plotconfig as _plotconfig
 from .plotconfig import _colors, _linewidth
 
-# ACCELEROMETER AND DIVES
-#------------------------------------------------------------------------------
-
 def plot_dives(dv0, dv1, p, dp, t_on, t_off):
-    '''Plots depths and delta depths with dive start stop markers'''
+    '''Plots depths and delta depths with dive start stop markers
+
+    Args
+    ----
+    dv0: int
+        Index position of dive start in cue array
+    dv1: int
+        Index position of dive stop in cue array
+    p: ndarray
+        Depth values
+    dp: ndarray
+        Delta depths
+    t_on: ndarray
+        Cue array with start index position of dives
+    t_off: ndarray
+        Cue array with stop index postition of dives
+    '''
 
     fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 
@@ -48,6 +64,23 @@ def plot_dives(dv0, dv1, p, dp, t_on, t_off):
 
 
 def plot_dives_pitch(depths, dive_mask, des, asc, pitch, pitch_lf):
+    '''Plot dives with phase and associated pitch angle with HF signal
+
+    Args
+    ----
+    depths: ndarray
+        Depth values at each sensor sampling
+    dive_mask: ndarray
+        Boolean mask slicing dives from the tag data
+    des: ndarray
+        boolean mask for slicing descent phases of dives from tag dta
+    asc: ndarray
+        boolean mask for slicing asccent phases of dives from tag dta
+    pitch: ndarray
+        Pitch angle derived from acceleromter data
+    pitch_lf: ndarray
+        Low-pass filtered derived pitch angle data
+    '''
     import copy
     import numpy
 
@@ -86,6 +119,17 @@ def plot_dives_pitch(depths, dive_mask, des, asc, pitch, pitch_lf):
 
 def plot_depth_descent_ascent(depths, dive_mask, des, asc):
     '''Plot depth data for whole deployment, descents, and ascents
+
+    Args
+    ----
+    depths: ndarray
+        Depth values at each sensor sampling
+    dive_mask: ndarray
+        Boolean mask slicing dives from the tag data
+    des: ndarray
+        boolean mask for slicing descent phases of dives from tag dta
+    asc: ndarray
+        boolean mask for slicing asccent phases of dives from tag dta
     '''
     import numpy
 
@@ -113,11 +157,16 @@ def plot_depth_descent_ascent(depths, dive_mask, des, asc):
     return None
 
 
-def plot_triaxial_depths_speed(data):
+def plot_triaxial_depths_speed(tag):
     '''Plot triaxial accelerometer data for whole deployment, descents, and
     ascents
 
     Only x and z axes are ploted since these are associated with stroking
+
+    Args
+    ----
+    tag: pandas.DataFrame
+        Tag dataframe with acceleromter, depth, and propeller columns
     '''
     import numpy
 
@@ -129,11 +178,11 @@ def plot_triaxial_depths_speed(data):
     ((ax1, ax4, ax7), (ax2, ax5, ax8), (ax3, ax6, ax9)) = axes
 
     # Create mask of all True for length of depths
-    all_ind = numpy.arange(0, len(data), dtype=int)
+    all_ind = numpy.arange(0, len(tag), dtype=int)
 
-    cols = [('x', data['Ax_g'], [ax1, ax2, ax3]),
-            ('y', data['Ay_g'], [ax4, ax5, ax6]),
-            ('z', data['Az_g'], [ax7, ax8, ax9])]
+    cols = [('x', tag['Ax_g'], [ax1, ax2, ax3]),
+            ('y', tag['Ay_g'], [ax4, ax5, ax6]),
+            ('z', tag['Az_g'], [ax7, ax8, ax9])]
 
     for label, y, axes in cols:
         axes[0].title.set_text('Accelerometer {}-axis'.format(label))
@@ -141,11 +190,11 @@ def plot_triaxial_depths_speed(data):
                      linewidth=_linewidth, label='x')
 
         axes[1].title.set_text('Depths')
-        axes[1] = plotutils.plot_noncontiguous(axes[1], data['depth'], all_ind,
+        axes[1] = plotutils.plot_noncontiguous(axes[1], tag['depth'], all_ind,
                                                color=_colors[1])
         axes[1].invert_yaxis()
 
-        axes[2] = plotutils.plot_noncontiguous(axes[2], data['propeller'],
+        axes[2] = plotutils.plot_noncontiguous(axes[2], tag['propeller'],
                                                all_ind, color=_colors[2],
                                                label='propeller')
 
@@ -159,6 +208,17 @@ def plot_triaxial_descent_ascent(Ax, Az, des, asc):
     ascents
 
     Only x and z axes are ploted since these are associated with stroking
+
+    Args
+    ----
+    Ax: ndarray
+        X-axis acclerometer data array
+    Az: ndarray
+        Z-axis acclerometer data array
+    des: ndarray
+        boolean mask for slicing descent phases of dives from tag dta
+    asc: ndarray
+        boolean mask for slicing asccent phases of dives from tag dta
     '''
     import numpy
 

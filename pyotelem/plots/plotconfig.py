@@ -1,3 +1,7 @@
+'''
+This module sets configuration values that can be used between all plotting
+modules for consistency.
+'''
 import matplotlib.pyplot as _plt
 import seaborn as _seaborn
 
