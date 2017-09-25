@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 import os
 
 here = os.path.abspath(os.path.dirname(__file__))
@@ -16,7 +16,7 @@ setup(
     url='https://github.com/ryanjdillon/pyotelem',
     download_url='https://github.com/ryanjdillon/pyotelem/archive/0.1.tar.gz',
     license='GPL-3.0+',
-    packages=['pyotelem'],
+    packages=find_packages(),
     install_requires=[
         'gsw',
         'pandas',
