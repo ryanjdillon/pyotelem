@@ -32,7 +32,7 @@ def plot_glide_depths(depths, mask_tag_filt):
 
 def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, Az_g_hf,
         idx_start=None, idx_end=None, path_plot=None, linewidth=0.5,
-        clip_x=False):
+        leg_bbox=(1.23,1), clip_x=False):
     '''Plot sub-glides over depth and high-pass filtered accelerometer signal
 
     Args
@@ -192,13 +192,17 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, Az_g_hf,
     ax2.xaxis.set_major_formatter(mf2)
 
     # Create legends outside plot area
-    leg1 = ax1.legend(loc='upper right', bbox_to_anchor=(1.23,1))
+    leg1 = ax1.legend(bbox_to_anchor=leg_bbox)
     plt.tight_layout(rect=[0,0,0.8,1])
 
     # Save plot if `path_plot` passed
     if path_plot:
         import os
         fname = 'subglide_highlight'
+        if idx_start:
+            fname += '_start{}'.format(idx_start)
+        if idx_end:
+            fname+= '_stop{}'.format(idx_end)
         ext = '.eps'
         file_fig = os.path.join(path_plot, fname+ext)
         plt.savefig(file_fig, box='tight')
