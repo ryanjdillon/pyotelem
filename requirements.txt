@@ -1,0 +1,4 @@
+gsw
+pandas
+scipy
+matplotlib

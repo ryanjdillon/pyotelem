@@ -7,14 +7,14 @@ with open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='pyotelem',
-    version='0.3',
+    version='0.4',
     description=('Utilities for working with biotelemetry and datalogger '
                  'data in Python'),
     long_description=long_description,
     author='Ryan J. Dillon',
     author_email='ryanjamesdillon@gmail.com',
     url='https://github.com/ryanjdillon/pyotelem',
-    download_url='https://github.com/ryanjdillon/pyotelem/archive/0.3.tar.gz',
+    download_url='https://github.com/ryanjdillon/pyotelem/archive/0.4.tar.gz',
     license='GPL-3.0+',
     packages=find_packages(),
     install_requires=[
