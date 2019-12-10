@@ -1,3 +1,7 @@
+language: python
+python:
+  - "3.7"
+cache: pip
 # Username and password stored as Travis secrets
 deploy:
   provider: pypi
