@@ -1,0 +1,6 @@
+# Username and password stored as Travis secrets
+deploy:
+  provider: pypi
+  on:
+    tags: true
+    branch: master
