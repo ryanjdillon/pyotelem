@@ -1,10 +1,10 @@
 language: python
 python:
+  - "3.6"
   - "3.7"
 cache: pip
-# Username and password stored as Travis secrets
-deploy:
-  provider: pypi
-  on:
-    tags: true
-    branch: master
+install:
+  - pip install -r requirements.txt
+  - pip install -r requirements_test.txt
+script:
+  - pytest --black --flake8
