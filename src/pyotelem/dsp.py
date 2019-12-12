@@ -1,6 +1,5 @@
-
 def normalized(a, axis=-1, order=2):
-    '''Return normalized vector for arbitrary axis
+    """Return normalized vector for arbitrary axis
 
     Args
     ----
@@ -15,17 +14,17 @@ def normalized(a, axis=-1, order=2):
     -----
     This function was adapted from the following StackOverflow answer:
     http://stackoverflow.com/a/21032099/943773
-    '''
+    """
     import numpy
 
     l2 = numpy.atleast_1d(numpy.linalg.norm(a, order, axis))
-    l2[l2==0] = 1
+    l2[l2 == 0] = 1
 
     return a / numpy.expand_dims(l2, axis)
 
 
 def findzc(x, thresh, t_max=None):
-    '''
+    """
     Find cues to each zero-crossing in vector x.
 
     To be accepted as a zero-crossing, the signal must pass from below
@@ -54,7 +53,7 @@ def findzc(x, thresh, t_max=None):
     -----
     This routine is a reimplementation of Mark Johnson's Dtag toolbox method
     and tested against the Matlab version to be sure it has the same result.
-    '''
+    """
     import numpy
 
     # positive threshold: p (over) n (under)
@@ -89,23 +88,23 @@ def findzc(x, thresh, t_max=None):
 
     # Get 1st and 2nd crossings
     ind_1stx = ind_all[crossing_mask]
-    ind_2ndx = ind_all[numpy.where(crossing_mask)[0]+1]
+    ind_2ndx = ind_all[numpy.where(crossing_mask)[0] + 1]
 
     # TODO odd option to replace with NaNs rather than delete?
     # Delete indices that do not have a second crossing
-    del_ind = numpy.where(ind_2ndx > len(x)-1)[0]
+    del_ind = numpy.where(ind_2ndx > len(x) - 1)[0]
     for i in del_ind:
         ind_1stx = numpy.delete(ind_1stx, i)
         ind_2ndx = numpy.delete(ind_1stx, i)
 
     # Get direction/sign of crossing
-    signs = numpy.sign(x[ind_1stx])*-1
+    signs = numpy.sign(x[ind_1stx]) * -1
 
     # Add column of direction and transpose
     zc = numpy.vstack((ind_1stx, ind_2ndx, signs)).T
 
     # TODO not mentioned in docstring, remove?
-    #x_norm? = ((x[:, 1] * zc[:, 0]) - (x[:, 0] * zc[:, 1])) / x[:, 1] - x[:, 0]
+    # x_norm? = ((x[:, 1] * zc[:, 0]) - (x[:, 0] * zc[:, 1])) / x[:, 1] - x[:, 0]
 
     if t_max:
         zc = zc[zc[:, 1] - zc[:, 0] <= t_max, :]
@@ -113,8 +112,8 @@ def findzc(x, thresh, t_max=None):
     return zc.astype(int)
 
 
-def butter_filter(cutoff, fs, order=5, btype='low'):
-    '''Create a digital butter fileter with cutoff frequency in Hz
+def butter_filter(cutoff, fs, order=5, btype="low"):
+    """Create a digital butter fileter with cutoff frequency in Hz
 
     Args
     ----
@@ -137,7 +136,7 @@ def butter_filter(cutoff, fs, order=5, btype='low'):
     -----
     This function was adapted from the following StackOverflow answer:
     http://stackoverflow.com/a/25192640/943773
-    '''
+    """
     import scipy.signal
 
     nyq = 0.5 * fs
@@ -148,7 +147,7 @@ def butter_filter(cutoff, fs, order=5, btype='low'):
 
 
 def butter_apply(b, a, data):
-    '''Apply filter with filtfilt to allign filtereted data with input
+    """Apply filter with filtfilt to allign filtereted data with input
 
     The filter is applied once forward and once backward to give it linear
     phase, using Gustafsson's method to give the same length as the original
@@ -170,14 +169,14 @@ def butter_apply(b, a, data):
     -----
     This function was adapted from the following StackOverflow answer:
     http://stackoverflow.com/a/25192640/943773
-    '''
+    """
     import scipy.signal
 
-    return scipy.signal.filtfilt(b, a, data, method='gust')
+    return scipy.signal.filtfilt(b, a, data, method="gust")
 
 
 def calc_PSD_welch(x, fs, nperseg):
-    '''Caclulate power spectral density with Welch's method
+    """Caclulate power spectral density with Welch's method
 
     Args
     ----
@@ -196,15 +195,9 @@ def calc_PSD_welch(x, fs, nperseg):
         Signal power (integrated PSD)
     df_welch: ndarray
         Delta between discreet frequencies `f_welch`
-    '''
+    """
     import numpy
     import scipy.signal
-
-    # Code source and description of FFT, DFT, etc.
-    # http://stackoverflow.com/a/33251324/943773
-    dt = 1/fs
-    N = len(x)
-    times = numpy.arange(N) / fs
 
     # Estimate PSD `S_xx_welch` at discrete frequencies `f_welch`
     f_welch, S_xx_welch = scipy.signal.welch(x, fs=fs, nperseg=nperseg)
@@ -218,7 +211,7 @@ def calc_PSD_welch(x, fs, nperseg):
 
 
 def simple_peakfinder(x, y, delta):
-    '''Detect local maxima and minima in a vector
+    """Detect local maxima and minima in a vector
 
     A point is considered a maximum peak if it has the maximal value, and was
     preceded (to the left) by a value lower by `delta`.
@@ -252,7 +245,7 @@ def simple_peakfinder(x, y, delta):
     Matlab Author:      Eli Billauer   http://billauer.co.il/peakdet.html
     Python translation: Chris Muktar   https://gist.github.com/endolith/250860
     Python cleanup:     Ryan J. Dillon
-    '''
+    """
     import numpy
 
     y = numpy.asarray(y)
@@ -260,8 +253,8 @@ def simple_peakfinder(x, y, delta):
     max_ind = list()
     min_ind = list()
 
-    local_min     = numpy.inf
-    local_max     = -numpy.inf
+    local_min = numpy.inf
+    local_max = -numpy.inf
     local_min_pos = numpy.nan
     local_max_pos = numpy.nan
 
@@ -278,13 +271,13 @@ def simple_peakfinder(x, y, delta):
             local_min_pos = x[i]
 
         if lookformax:
-            if y[i] < local_max-abs(delta):
+            if y[i] < local_max - abs(delta):
                 max_ind.append(local_max_pos)
                 local_min = y[i]
                 local_min_pos = x[i]
                 lookformax = False
         else:
-            if y[i] > local_min+abs(delta):
+            if y[i] > local_min + abs(delta):
                 min_ind.append(local_min_pos)
                 local_max = y[i]
                 local_max_pos = x[i]

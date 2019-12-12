@@ -1,13 +1,13 @@
-'''
+"""
 Glides and subglide plotting functions
-'''
+"""
 import matplotlib.pyplot as plt
 
-from . import plotconfig as _plotconfig
 from .plotconfig import _colors
 
+
 def plot_glide_depths(depths, mask_tag_filt):
-    '''Plot depth at glides
+    """Plot depth at glides
 
     Args
     ----
@@ -15,7 +15,7 @@ def plot_glide_depths(depths, mask_tag_filt):
         Depth values at each sensor sampling
     mask_tag_filt: ndarray
         Boolean mask to slice filtered sub-glides from tag data
-    '''
+    """
     import numpy
 
     from . import plotutils
@@ -30,10 +30,21 @@ def plot_glide_depths(depths, mask_tag_filt):
     return None
 
 
-def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, Az_g_hf,
-        idx_start=None, idx_end=None, path_plot=None, linewidth=0.5,
-        leg_bbox=(1.23,1), clip_x=False):
-    '''Plot sub-glides over depth and high-pass filtered accelerometer signal
+def plot_sgls(
+    mask_exp,
+    depths,
+    mask_tag_filt,
+    sgls,
+    mask_sgls_filt,
+    Az_g_hf,
+    idx_start=None,
+    idx_end=None,
+    path_plot=None,
+    linewidth=0.5,
+    leg_bbox=(1.23, 1),
+    clip_x=False,
+):
+    """Plot sub-glides over depth and high-pass filtered accelerometer signal
 
     Args
     ----
@@ -59,30 +70,30 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, Az_g_hf,
         Width of plot lines (Default: 0.5)
     clip_x: bool
         Swith to clip x-axis to the experimental period
-    '''
+    """
     import matplotlib.pyplot as plt
     from matplotlib.ticker import FuncFormatter, ScalarFormatter
     import numpy
 
     from . import plotutils
-    from .. import utils
 
     # Create experiment mask from specified start/end indices if passed
     if idx_start or idx_end:
         mask_exp = numpy.zeros(len(depths), dtype=bool)
+        ind_exp = numpy.where(mask_exp)[0]
         if idx_start and idx_end:
             mask_exp[idx_start:idx_end] = True
         elif idx_start:
-            mask_exp[idx_start:ind_exp[-1]] = True
+            mask_exp[idx_start : ind_exp[-1]] = True
         elif idx_end:
-            mask_exp[ind_exp[0]:idx_end] = True
+            mask_exp[ind_exp[0] : idx_end] = True
 
     # Filter passed data to experimental period
-    depths  = depths[mask_exp]
+    depths = depths[mask_exp]
     Az_g_hf = Az_g_hf[mask_exp]
 
     # Create subglide indice groups for plotting
-    sgl_ind    = numpy.where(mask_tag_filt & mask_exp)[0]
+    sgl_ind = numpy.where(mask_tag_filt & mask_exp)[0]
     notsgl_ind = numpy.where((~mask_tag_filt) & mask_exp)[0]
     # Create experiment indices from `mask_exp`
     ind_exp = numpy.where(mask_exp)[0]
@@ -93,7 +104,7 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, Az_g_hf,
     if clip_x:
         offset = ind_exp[0]
         ind_exp = ind_exp - offset
-        sgl_ind    = sgl_ind - offset
+        sgl_ind = sgl_ind - offset
         notsgl_ind = notsgl_ind - offset
         plt_offset = 0
 
@@ -101,25 +112,31 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, Az_g_hf,
 
     # Plot glides
     c0, c1 = _colors[0:2]
-    ax1 = plotutils.plot_noncontiguous(ax1, depths, sgl_ind, c0, 'Glides',
-                                       offset=plt_offset,
-                                       linewidth=linewidth*2)
-    ax1 = plotutils.plot_noncontiguous(ax1, depths, notsgl_ind, c1, 'Stroking',
-                                       offset=plt_offset, linewidth=linewidth,
-                                       linestyle='--')
+    ax1 = plotutils.plot_noncontiguous(
+        ax1, depths, sgl_ind, c0, "Glides", offset=plt_offset, linewidth=linewidth * 2
+    )
+    ax1 = plotutils.plot_noncontiguous(
+        ax1,
+        depths,
+        notsgl_ind,
+        c1,
+        "Stroking",
+        offset=plt_offset,
+        linewidth=linewidth,
+        linestyle="--",
+    )
 
     # Plot HF Z-axis
     c0 = _colors[2]
-    ax2.plot(ind_exp, Az_g_hf, color=c0, label='Z-axis HF Acc.',
-            linewidth=linewidth)
+    ax2.plot(ind_exp, Az_g_hf, color=c0, label="Z-axis HF Acc.", linewidth=linewidth)
 
     # Get dives within mask
     gg = sgls[mask_sgls_filt]
 
     # Get midpoint of dive occurance
-    x = (gg['start_idx'] + (gg['stop_idx'] - gg['start_idx'])/2)
+    x = gg["start_idx"] + (gg["stop_idx"] - gg["start_idx"]) / 2
     x = x.values.astype(float)
-    x_mask = (x-offset > ind_exp[0]) & (x-offset< ind_exp[-1])
+    x_mask = (x - offset > ind_exp[0]) & (x - offset < ind_exp[-1])
     x = x[x_mask]
 
     # Get depth at midpoint
@@ -131,22 +148,24 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, Az_g_hf,
     y = depths[ind_x]
 
     # For each dive_id, sgl_id pair, create annotation string, apply
-    dids = gg['dive_id'].values.astype(int)
+    dids = gg["dive_id"].values.astype(int)
     sids = numpy.array(gg.index)
     dids = dids[x_mask]
     sids = sids[x_mask]
-    n = ['Dive:{}, SGL:{}'.format(did, sid) for did, sid in zip(dids, sids)]
+    n = ["Dive:{}, SGL:{}".format(did, sid) for did, sid in zip(dids, sids)]
 
     diff = ind_exp[1] - ind_exp[0]
     for i, txt in enumerate(n):
         # TODO semi-hardcoded dist for annotation
-        ax1.annotate(txt, (x[i]+int(diff*16),y[i]))
+        ax1.annotate(txt, (x[i] + int(diff * 16), y[i]))
 
     # Plot shaded areas where not sub-glides
-    ax1 = plotutils.plot_shade_mask(ax1, ind_exp, ~mask_tag_filt[mask_exp],
-            facecolor='#d9d9d9')
-    ax2 = plotutils.plot_shade_mask(ax2, ind_exp, ~mask_tag_filt[mask_exp],
-            facecolor='#d9d9d9')
+    ax1 = plotutils.plot_shade_mask(
+        ax1, ind_exp, ~mask_tag_filt[mask_exp], facecolor="#d9d9d9"
+    )
+    ax2 = plotutils.plot_shade_mask(
+        ax2, ind_exp, ~mask_tag_filt[mask_exp], facecolor="#d9d9d9"
+    )
 
     # Set x-axes limits
     for ax in [ax1, ax2]:
@@ -161,51 +180,52 @@ def plot_sgls(mask_exp, depths, mask_tag_filt, sgls, mask_sgls_filt, Az_g_hf,
         else:
             xmax = ax.get_xlim()[1]
         if clip_x:
-            xmin, xmax = xmin-offset, xmax-offset
+            xmin, xmax = xmin - offset, xmax - offset
         ax.set_xlim(xmin, xmax)
         for tick in ax.get_xticklabels():
             tick.set_rotation(45)
-            tick.set_ha('right')
+            tick.set_ha("right")
 
     # Update Depth subplot y-axis labels, limits, invert depth
-    ax1.set_ylabel('Depth ($m$)')
-    ymin = depths.min() - (depths.max()*0.01)
-    ymax = depths.max() + (depths.max()*0.01)
+    ax1.set_ylabel("Depth ($m$)")
+    ymin = depths.min() - (depths.max() * 0.01)
+    ymax = depths.max() + (depths.max() * 0.01)
     ax1.set_ylim((ymin, ymax))
     ax1.invert_yaxis()
-    ax1.get_yaxis().set_label_coords(-0.09,0.5)
+    ax1.get_yaxis().set_label_coords(-0.09, 0.5)
 
     # Update PRH subplot y labels, limits
-    ax2.set_ylabel('Z-axis acceleration ($g$)')
+    ax2.set_ylabel("Z-axis acceleration ($g$)")
     ax2.set_ylim((Az_g_hf.min(), Az_g_hf.max()))
-    ax2.get_yaxis().set_label_coords(-0.09,0.5)
+    ax2.get_yaxis().set_label_coords(-0.09, 0.5)
 
     # Scientific notation for ax1 `n_samples`
-    ax1.set_xlabel('No. sensor samples')
+    ax1.set_xlabel("No. sensor samples")
     mf1 = ScalarFormatter(useMathText=True)
-    mf1.set_powerlimits((-2,2))
+    mf1.set_powerlimits((-2, 2))
     ax1.xaxis.set_major_formatter(mf1)
 
     # Convert n_samples to hourmin labels
-    ax2.set_xlabel('Experiment duration ($min \, sec$)')
+    ax2.set_xlabel(r"Experiment duration ($min \, sec$)")
     mf2 = FuncFormatter(plotutils.nsamples_to_minsec)
     ax2.xaxis.set_major_formatter(mf2)
 
     # Create legends outside plot area
-    leg1 = ax1.legend(bbox_to_anchor=leg_bbox)
-    plt.tight_layout(rect=[0,0,0.8,1])
+    ax1.legend(bbox_to_anchor=leg_bbox)
+    plt.tight_layout(rect=[0, 0, 0.8, 1])
 
     # Save plot if `path_plot` passed
     if path_plot:
         import os
-        fname = 'subglide_highlight'
+
+        fname = "subglide_highlight"
         if idx_start:
-            fname += '_start{}'.format(idx_start)
+            fname += "_start{}".format(idx_start)
         if idx_end:
-            fname+= '_stop{}'.format(idx_end)
-        ext = '.eps'
-        file_fig = os.path.join(path_plot, fname+ext)
-        plt.savefig(file_fig, box='tight')
+            fname += "_stop{}".format(idx_end)
+        ext = ".eps"
+        file_fig = os.path.join(path_plot, fname + ext)
+        plt.savefig(file_fig, box="tight")
 
     plt.show()
 

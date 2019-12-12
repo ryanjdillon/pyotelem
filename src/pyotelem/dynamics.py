@@ -1,6 +1,5 @@
-
 def prh(ax, ay, az):
-    '''Calculate the pitch, roll and heading for triaxial movement signalsi
+    """Calculate the pitch, roll and heading for triaxial movement signalsi
 
     Args
     ----
@@ -19,20 +18,20 @@ def prh(ax, ay, az):
         Pitch angle in radians
     yaw: ndarray
         Pitch angle in radians
-    '''
+    """
 
     p = pitch(ax, ay, az)
     r = roll(ax, ay, az)
     y = yaw(ax, ay, az)
 
-    #from dtag_toolbox_python.dtag2 import a2pr
-    #pitch, roll, A_norm = a2pr.a2pr(A_g)
+    # from dtag_toolbox_python.dtag2 import a2pr
+    # pitch, roll, A_norm = a2pr.a2pr(A_g)
 
     return p, r, y
 
 
 def pitch(ax, ay, az):
-    '''Angle of x-axis relative to ground (theta)
+    """Angle of x-axis relative to ground (theta)
 
     Args
     ----
@@ -47,14 +46,15 @@ def pitch(ax, ay, az):
     -------
     pitch: ndarray
         Pitch angle in radians
-    '''
+    """
     import numpy
+
     # arctan2 not needed here to cover all quadrants, just for consistency
-    return numpy.arctan(ax, numpy.sqrt(ay**2+az**2))
+    return numpy.arctan(ax, numpy.sqrt(ay ** 2 + az ** 2))
 
 
 def roll(ax, ay, az):
-    '''Angle of y-axis relative to ground (phi)
+    """Angle of y-axis relative to ground (phi)
 
     Args
     ----
@@ -69,14 +69,15 @@ def roll(ax, ay, az):
     -------
     roll: ndarray
         Roll angle in radians
-    '''
+    """
     import numpy
-    #return numpy.arctan(ay/numpy.sqrt(ax**2+az**2))
-    return numpy.arctan2(ay,az)
+
+    # return numpy.arctan(ay/numpy.sqrt(ax**2+az**2))
+    return numpy.arctan2(ay, az)
 
 
 def yaw(ax, ay, az):
-    '''Angle of z-axis relative to ground (psi)
+    """Angle of z-axis relative to ground (psi)
 
     Args
     ----
@@ -91,14 +92,15 @@ def yaw(ax, ay, az):
     -------
     yaw: ndarray
         Yaw angle in radians
-    '''
+    """
     import numpy
-    #return numpy.arctan(numpy.sqrt(ax**2+ay**2)/az)
-    return numpy.arctan2(ax,ay)
+
+    # return numpy.arctan(numpy.sqrt(ax**2+ay**2)/az)
+    return numpy.arctan2(ax, ay)
 
 
 def absdeg(deg):
-    '''Change from signed degrees to 0-180 or 0-360 ranges
+    """Change from signed degrees to 0-180 or 0-360 ranges
 
     deg: ndarray
         Movement data in pitch, roll, yaw (degrees)
@@ -112,7 +114,7 @@ def absdeg(deg):
     -------
     deg = numpy.array([-170, -120, 0, 90])
     absdeg(deg) # returns array([190, 240,   0,  90])
-    '''
+    """
     import numpy
 
     d = numpy.copy(deg)
@@ -126,7 +128,7 @@ def absdeg(deg):
 
 
 def acceleration_magnitude(ax, ay, az):
-    '''Cacluate the magnitude of 3D acceleration
+    """Cacluate the magnitude of 3D acceleration
 
     Args
     ----
@@ -143,6 +145,7 @@ def acceleration_magnitude(ax, ay, az):
         Magnitude of acceleration from combined acceleration axes
 
     http://physics.stackexchange.com/a/41655/126878
-    '''
+    """
     import numpy
-    return numpy.sqrt(ax**2 + ay**2 + az**2)
+
+    return numpy.sqrt(ax ** 2 + ay ** 2 + az ** 2)

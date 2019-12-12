@@ -1,6 +1,5 @@
-
 def SWdensityFromCTD(SA, t, p, potential=False):
-    '''Calculate seawater density at CTD depth
+    """Calculate seawater density at CTD depth
 
     Args
     ----
@@ -15,7 +14,7 @@ def SWdensityFromCTD(SA, t, p, potential=False):
     -------
     rho: ndarray
         Seawater density, in-situ or potential, kg/m^3
-    '''
+    """
     import numpy
     import gsw
 
@@ -29,7 +28,7 @@ def SWdensityFromCTD(SA, t, p, potential=False):
 
 
 def interp_S_t(S, t, z, z_new, p=None):
-    ''' Linearly interpolate CTD S, t, and p (optional) from `z` to `z_new`.
+    """ Linearly interpolate CTD S, t, and p (optional) from `z` to `z_new`.
 
     Args
     ----
@@ -64,7 +63,7 @@ def interp_S_t(S, t, z, z_new, p=None):
 
     This method is adapted from the the legacy `python-gsw` package, where
     their basic algorithm is from scipy.interpolate.
-    '''
+    """
     import numpy
 
     # Create array-like query depth if single value passed
@@ -141,7 +140,7 @@ def interp_S_t(S, t, z, z_new, p=None):
     return S_i, t_i, p_i
 
 
-#def estimate_seawater_density(depths, SA, t, p, duplicates='last'):
+# def estimate_seawater_density(depths, SA, t, p, duplicates='last'):
 #    '''Estimate seawater density
 #
 #    depths: ndarray
@@ -205,4 +204,3 @@ def interp_S_t(S, t, z, z_new, p=None):
 #    densities = tsd['density'][depths.round().astype(int)]
 #
 #    return tsd, densities
-
