@@ -1,8 +1,10 @@
 pyotelem
 ========
 .. |DOI| image:: https://zenodo.org/badge/104341008.svg
-   :target: https://zenodo.org/badge/latestdoi/104341008
-|DOI|
+    :target: https://zenodo.org/badge/latestdoi/104341008
+.. |travis| image:: https://travis-ci.org/ryanjdillon/pyotelem.svg?branch=master
+    :target: https://travis-ci.org/ryanjdillon/pyotelem
+|DOI| |travis|
 
 A library for performing data analysis on biotelemetry and biologger data.
 
