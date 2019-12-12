@@ -8,12 +8,13 @@ cycler==0.10.0            # via matplotlib
 gsw==3.3.1
 kiwisolver==1.1.0         # via matplotlib
 matplotlib==3.1.2
-numpy==1.17.4             # via gsw, matplotlib, pandas, scipy
+numpy==1.17.4             # via gsw, matplotlib, pandas, scipy, seaborn
 pandas==0.25.3
 pyparsing==2.4.5          # via matplotlib
 python-dateutil==2.8.1    # via matplotlib, pandas
 pytz==2019.3              # via pandas
 scipy==1.3.3
+seaborn==0.9.0
 six==1.13.0               # via cycler, python-dateutil
 
 # The following packages are considered to be unsafe in a requirements file:
