@@ -25,10 +25,11 @@ setup(
     license="GPL-3.0+",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
+    setup_requires=setup_requirements,
     install_requires=requirements("requirements.in"),
-    tests_requires=requirements("requirements_test.txt"),
+    tests_require=requirements("requirements_test.txt"),
     include_package_data=True,
-    use_scm_version={"write_to": "src/pylleo/_version.py", "relative_to": __file__},
+    use_scm_version={"write_to": "src/pyotelem/_version.py", "relative_to": __file__},
     keywords=["datalogger", "accelerometer", "biotelemetry"],
     classifiers=[
         "Development Status :: 3 - Alpha",
