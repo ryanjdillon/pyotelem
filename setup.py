@@ -16,7 +16,7 @@ setup_requirements = ["pytest-runner", "setuptools_scm"]
 setup(
     name="pyotelem",
     description=(
-        "Utilities for working with biotelemetry and datalogger " "data in Python"
+        "Utilities for working with biotelemetry and datalogger data in Python"
     ),
     long_description=long_description,
     author="Ryan J. Dillon",
