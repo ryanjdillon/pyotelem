@@ -1,3 +1,6 @@
+# Version file
+src/pyotelem/_verison.py
+
 # swap files
 ~*
 *.swp
