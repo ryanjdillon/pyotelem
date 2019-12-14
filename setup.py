@@ -15,10 +15,7 @@ setup_requirements = ["pytest-runner", "setuptools_scm"]
 
 setup(
     name="pyotelem",
-    description=(
-        "Utilities for working with biotelemetry and datalogger data in Python"
-    ),
-    long_description=long_description,
+    description="A library for processing biotelemetry and datalogger data",
     author="Ryan J. Dillon",
     author_email="ryanjamesdillon@gmail.com",
     url="https://github.com/ryanjdillon/pyotelem",
@@ -34,7 +31,8 @@ setup(
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",
-        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
     ],
-    zip_safe=False,
+    zip_safe=True,
 )
