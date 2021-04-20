@@ -4,25 +4,54 @@
 #
 #    pip-compile requirements_test.in
 #
-appdirs==1.4.3            # via black
-attrs==19.3.0             # via black, pytest
+appdirs==1.4.3
+    # via black
+attrs==19.3.0
+    # via
+    #   black
+    #   pytest
 black==19.3b0
-click==7.0                # via black
-entrypoints==0.3          # via flake8
+    # via
+    #   -r requirements_test.in
+    #   pytest-black
+click==7.0
+    # via black
+entrypoints==0.3
+    # via flake8
 flake8==3.7.9
-importlib-metadata==1.2.0  # via pluggy, pytest
-mccabe==0.6.1             # via flake8
-more-itertools==8.0.2     # via pytest, zipp
-packaging==19.2           # via pytest
-pluggy==0.13.1            # via pytest
-py==1.8.0                 # via pytest
-pycodestyle==2.5.0        # via flake8
-pyflakes==2.1.1           # via flake8
-pyparsing==2.4.5          # via packaging
+    # via
+    #   -r requirements_test.in
+    #   pytest-flake8
+mccabe==0.6.1
+    # via flake8
+more-itertools==8.0.2
+    # via pytest
+packaging==19.2
+    # via pytest
+pluggy==0.13.1
+    # via pytest
+py==1.10.0
+    # via pytest
+pycodestyle==2.5.0
+    # via flake8
+pyflakes==2.1.1
+    # via flake8
+pyparsing==2.4.5
+    # via packaging
 pytest-black==0.3.7
+    # via -r requirements_test.in
 pytest-flake8==1.0.4
+    # via -r requirements_test.in
 pytest==5.3.1
-six==1.13.0               # via packaging
-toml==0.10.0              # via black, pytest-black
-wcwidth==0.1.7            # via pytest
-zipp==0.6.0               # via importlib-metadata
+    # via
+    #   -r requirements_test.in
+    #   pytest-black
+    #   pytest-flake8
+six==1.13.0
+    # via packaging
+toml==0.10.0
+    # via
+    #   black
+    #   pytest-black
+wcwidth==0.1.7
+    # via pytest
